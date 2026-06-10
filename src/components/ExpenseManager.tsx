@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { Plus, Trash2, Image } from 'lucide-react'
 import type { Expense, ExpenseCategory } from '../types'
-import { formatKRW, getYearMonth } from '../utils/calculations'
+import { formatKRW } from '../utils/calculations'
 
 interface Props {
   expenses: Expense[]
@@ -74,10 +74,10 @@ export default function ExpenseManager({ expenses, setExpenses }: Props) {
   const sorted = [...filtered].sort((a, b) => (a.date > b.date ? -1 : 1))
 
   const categorySummary: Record<ExpenseCategory, number> = {
-    리그참가비: 0,
-    유니폼: 0,
-    운영비: 0,
-    기타: 0,
+    '리그참가비': 0,
+    '유니폼': 0,
+    '운영비': 0,
+    '기타': 0,
   }
   for (const e of expenses) {
     categorySummary[e.category] += e.amount
@@ -112,9 +112,7 @@ export default function ExpenseManager({ expenses, setExpenses }: Props) {
             >
               <option value="all">전체</option>
               {CATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
+                <option key={c} value={c}>{c}</option>
               ))}
             </select>
             <button
@@ -147,9 +145,7 @@ export default function ExpenseManager({ expenses, setExpenses }: Props) {
                   onChange={(e) => setForm({ ...form, category: e.target.value as ExpenseCategory })}
                 >
                   {CATEGORIES.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
+                    <option key={c} value={c}>{c}</option>
                   ))}
                 </select>
               </div>
@@ -161,12 +157,7 @@ export default function ExpenseManager({ expenses, setExpenses }: Props) {
                   className="border rounded px-2 py-1.5 text-sm w-full mt-1"
                   placeholder="100000"
                   value={form.amount}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      amount: e.target.value.replace(/[^0-9]/g, ''),
-                    })
-                  }
+                  onChange={(e) => setForm({ ...form, amount: e.target.value.replace(/[^0-9]/g, '') })}
                 />
               </div>
               <div>
@@ -191,9 +182,7 @@ export default function ExpenseManager({ expenses, setExpenses }: Props) {
                       onChange={handleReceiptUpload}
                     />
                   </label>
-                  {form.receipt && (
-                    <span className="text-xs text-green-600">✓ 첨부됨</span>
-                  )}
+                  {form.receipt && <span className="text-xs text-green-600">✓ 첨부됨</span>}
                 </div>
               </div>
             </div>
@@ -205,10 +194,7 @@ export default function ExpenseManager({ expenses, setExpenses }: Props) {
                 저장
               </button>
               <button
-                onClick={() => {
-                  setAdding(false)
-                  if (receiptRef.current) receiptRef.current.value = ''
-                }}
+                onClick={() => { setAdding(false); if (receiptRef.current) receiptRef.current.value = '' }}
                 className="text-sm border border-gray-300 px-4 py-1.5 rounded-lg hover:bg-gray-50"
               >
                 취소
@@ -226,9 +212,7 @@ export default function ExpenseManager({ expenses, setExpenses }: Props) {
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-gray-800 text-sm">{exp.description}</span>
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-full ${CATEGORY_COLORS[exp.category]}`}
-                    >
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${CATEGORY_COLORS[exp.category]}`}>
                       {exp.category}
                     </span>
                     {exp.receipt && (
@@ -265,12 +249,7 @@ export default function ExpenseManager({ expenses, setExpenses }: Props) {
           <div className="max-w-lg w-full bg-white rounded-xl overflow-hidden shadow-2xl">
             <div className="flex justify-between items-center px-4 py-3 border-b">
               <p className="text-sm font-medium">영수증/증빙</p>
-              <button
-                onClick={() => setPreviewReceipt(null)}
-                className="text-gray-400 hover:text-gray-600 text-sm"
-              >
-                닫기
-              </button>
+              <button onClick={() => setPreviewReceipt(null)} className="text-gray-400 hover:text-gray-600 text-sm">닫기</button>
             </div>
             <div className="p-4">
               {previewReceipt.startsWith('data:image') ? (
