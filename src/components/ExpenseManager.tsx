@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { Plus, Trash2, Image } from 'lucide-react'
 import type { Expense, ExpenseCategory } from '../types'
-import { formatKRW, getYearMonth } from '../utils/calculations'
+import { formatKRW } from '../utils/calculations'
 
 interface Props {
   expenses: Expense[]
