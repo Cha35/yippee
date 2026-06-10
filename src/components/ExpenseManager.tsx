@@ -73,12 +73,6 @@ export default function ExpenseManager({ expenses, setExpenses }: Props) {
 
   const sorted = [...filtered].sort((a, b) => (a.date > b.date ? -1 : 1))
 
-  // Monthly summary
-  const monthlySummary: Record<string, number> = {}
-  for (const e of expenses) {
-    const ym = getYearMonth(e.date)
-    monthlySummary[ym] = (monthlySummary[ym] ?? 0) + e.amount
-  }
   // Category summary
   const categorySummary: Record<ExpenseCategory, number> = {
     리그참가비: 0,
