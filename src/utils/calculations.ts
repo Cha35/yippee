@@ -4,6 +4,10 @@ export function getYearMonth(date: string): string {
   return date.slice(0, 7)
 }
 
+export function getYear(date: string): string {
+  return date.slice(0, 4)
+}
+
 export function formatKRW(amount: number): string {
   return new Intl.NumberFormat('ko-KR', {
     style: 'currency',
@@ -45,6 +49,10 @@ export function matchTransactionToMember(
   return undefined
 }
 
+export function getAnnualDues(member: Member): number {
+  return member.annualDues ?? member.monthlyDues * 12
+}
+
 export function computeDuesStatuses(
   members: Member[],
   transactions: Transaction[],
@@ -60,45 +68,88 @@ export function computeDuesStatuses(
 
   for (const member of members) {
     if (!member.active) continue
-    for (const ym of months) {
-      const memberSince = member.joinDate <= ym
-      if (!memberSince) continue
 
-      const monthTxs = enriched.filter(
-        (tx) =>
-          tx.type === '입금' &&
-          tx.memberId === member.id &&
-          getYearMonth(tx.date) === ym
-      )
+    if (member.paymentType === 'annual') {
+      // 일시납: 연도별로 처리
+      const years = [...new Set(months.map((m) => m.slice(0, 4)))]
+      for (const year of years) {
+        const memberSince = member.joinDate.slice(0, 4) <= year
+        if (!memberSince) continue
 
-      const paid = monthTxs.reduce((sum, tx) => sum + tx.amount, 0)
-      const required = member.monthlyDues
+        const yearMonths = months.filter((m) => m.startsWith(year))
+        const yearTxs = enriched.filter(
+          (tx) =>
+            tx.type === '입금' &&
+            tx.memberId === member.id &&
+            tx.date.startsWith(year)
+        )
+        const paid = yearTxs.reduce((sum, tx) => sum + tx.amount, 0)
+        const required = getAnnualDues(member)
+        const overrideKey = `${member.id}:${year}`
+        const override = manualOverrides[overrideKey]
 
-      const overrideKey = `${member.id}:${ym}`
-      const override = manualOverrides[overrideKey]
+        const annualStatus: DuesStatus['status'] =
+          override === 'paid'
+            ? 'annual_paid'
+            : override === 'unpaid'
+            ? 'annual_unpaid'
+            : paid >= required
+            ? 'annual_paid'
+            : 'annual_unpaid'
 
-      let status: DuesStatus['status']
-      if (override === 'paid') {
-        status = 'paid'
-      } else if (override === 'unpaid') {
-        status = 'unpaid'
-      } else if (paid >= required) {
-        status = 'paid'
-      } else if (paid > 0) {
-        status = 'partial'
-      } else {
-        status = 'unpaid'
+        for (const ym of yearMonths) {
+          statuses.push({
+            memberId: member.id,
+            yearMonth: ym,
+            required,
+            paid,
+            status: annualStatus,
+            manualOverride: override,
+            transactions: yearTxs,
+          })
+        }
       }
+    } else {
+      // 월납
+      for (const ym of months) {
+        const memberSince = member.joinDate <= ym
+        if (!memberSince) continue
 
-      statuses.push({
-        memberId: member.id,
-        yearMonth: ym,
-        required,
-        paid,
-        status,
-        manualOverride: override,
-        transactions: monthTxs,
-      })
+        const monthTxs = enriched.filter(
+          (tx) =>
+            tx.type === '입금' &&
+            tx.memberId === member.id &&
+            getYearMonth(tx.date) === ym
+        )
+
+        const paid = monthTxs.reduce((sum, tx) => sum + tx.amount, 0)
+        const required = member.monthlyDues
+        const overrideKey = `${member.id}:${ym}`
+        const override = manualOverrides[overrideKey]
+
+        let status: DuesStatus['status']
+        if (override === 'paid') {
+          status = 'paid'
+        } else if (override === 'unpaid') {
+          status = 'unpaid'
+        } else if (paid >= required) {
+          status = 'paid'
+        } else if (paid > 0) {
+          status = 'partial'
+        } else {
+          status = 'unpaid'
+        }
+
+        statuses.push({
+          memberId: member.id,
+          yearMonth: ym,
+          required,
+          paid,
+          status,
+          manualOverride: override,
+          transactions: monthTxs,
+        })
+      }
     }
   }
 
@@ -141,7 +192,9 @@ export function computeLeaguePlan(
 
 export function getCollectionRate(statuses: DuesStatus[]): number {
   if (statuses.length === 0) return 0
-  const paid = statuses.filter((s) => s.status === 'paid').length
+  const paid = statuses.filter(
+    (s) => s.status === 'paid' || s.status === 'annual_paid'
+  ).length
   return Math.round((paid / statuses.length) * 100)
 }
 

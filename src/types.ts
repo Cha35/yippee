@@ -1,8 +1,12 @@
+export type PaymentType = 'monthly' | 'annual'
+
 export interface Member {
   id: string
   name: string
   role: 'captain' | 'member'
   monthlyDues: number
+  annualDues?: number // 일시납 금액 (미설정 시 monthlyDues * 12)
+  paymentType: PaymentType
   aliases: string[]
   active: boolean
   joinDate: string // YYYY-MM
@@ -51,7 +55,7 @@ export interface DuesStatus {
   yearMonth: string // YYYY-MM
   required: number
   paid: number
-  status: 'paid' | 'partial' | 'unpaid'
+  status: 'paid' | 'partial' | 'unpaid' | 'annual_paid' | 'annual_unpaid'
   manualOverride?: 'paid' | 'unpaid'
   transactions: Transaction[]
 }

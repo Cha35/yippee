@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Trash2, Edit2, Check, X, UserPlus } from 'lucide-react'
-import type { Member, Settings } from '../types'
-import { formatKRW } from '../utils/calculations'
+import type { Member, Settings, PaymentType } from '../types'
+import { formatKRW, getAnnualDues } from '../utils/calculations'
 
 interface Props {
   members: Member[]
@@ -21,7 +21,9 @@ interface EditState {
   id: string
   name: string
   role: 'captain' | 'member'
+  paymentType: PaymentType
   monthlyDues: string
+  annualDues: string
   aliases: string
   joinDate: string
 }
@@ -32,7 +34,9 @@ export default function MemberManager({ members, setMembers, settings, setSettin
   const [form, setForm] = useState<Omit<EditState, 'id'>>({
     name: '',
     role: 'member',
+    paymentType: 'monthly',
     monthlyDues: String(settings.defaultMonthlyDues),
+    annualDues: '',
     aliases: '',
     joinDate: thisMonth,
   })
@@ -43,7 +47,9 @@ export default function MemberManager({ members, setMembers, settings, setSettin
     setForm({
       name: '',
       role: 'member',
+      paymentType: 'monthly',
       monthlyDues: String(settings.defaultMonthlyDues),
+      annualDues: '',
       aliases: '',
       joinDate: thisMonth,
     })
@@ -57,11 +63,16 @@ export default function MemberManager({ members, setMembers, settings, setSettin
       .split(',')
       .map((a) => a.trim())
       .filter(Boolean)
+    const monthlyDues = parseInt(form.monthlyDues) || settings.defaultMonthlyDues
     const newMember: Member = {
       id: generateId(),
       name: form.name.trim(),
       role: form.role,
-      monthlyDues: parseInt(form.monthlyDues) || settings.defaultMonthlyDues,
+      paymentType: form.paymentType,
+      monthlyDues,
+      annualDues: form.paymentType === 'annual' && form.annualDues
+        ? parseInt(form.annualDues) || undefined
+        : undefined,
       aliases,
       active: true,
       joinDate: form.joinDate || thisMonth,
@@ -76,7 +87,9 @@ export default function MemberManager({ members, setMembers, settings, setSettin
       id: m.id,
       name: m.name,
       role: m.role,
+      paymentType: m.paymentType ?? 'monthly',
       monthlyDues: String(m.monthlyDues),
+      annualDues: m.annualDues ? String(m.annualDues) : '',
       aliases: m.aliases.join(', '),
       joinDate: m.joinDate,
     })
@@ -95,7 +108,11 @@ export default function MemberManager({ members, setMembers, settings, setSettin
               ...m,
               name: editForm.name.trim(),
               role: editForm.role,
+              paymentType: editForm.paymentType,
               monthlyDues: parseInt(editForm.monthlyDues) || m.monthlyDues,
+              annualDues: editForm.paymentType === 'annual' && editForm.annualDues
+                ? parseInt(editForm.annualDues) || undefined
+                : undefined,
               aliases,
               joinDate: editForm.joinDate,
             }
@@ -184,14 +201,39 @@ export default function MemberManager({ members, setMembers, settings, setSettin
                 </select>
               </div>
               <div>
-                <label className="text-xs text-gray-500">월 회비 (원)</label>
-                <input
-                  type="number"
+                <label className="text-xs text-gray-500">납입 방식</label>
+                <select
                   className="border rounded px-2 py-1.5 text-sm w-full mt-1"
-                  value={form.monthlyDues}
-                  onChange={(e) => setForm({ ...form, monthlyDues: e.target.value })}
-                />
+                  value={form.paymentType}
+                  onChange={(e) => setForm({ ...form, paymentType: e.target.value as PaymentType })}
+                >
+                  <option value="monthly">월납</option>
+                  <option value="annual">일시납 (연간)</option>
+                </select>
               </div>
+              {form.paymentType === 'monthly' ? (
+                <div>
+                  <label className="text-xs text-gray-500">월 회비 (원)</label>
+                  <input
+                    type="number"
+                    className="border rounded px-2 py-1.5 text-sm w-full mt-1"
+                    value={form.monthlyDues}
+                    onChange={(e) => setForm({ ...form, monthlyDues: e.target.value })}
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="text-xs text-gray-500">연간 납입액 (원)</label>
+                  <input
+                    type="number"
+                    className="border rounded px-2 py-1.5 text-sm w-full mt-1"
+                    placeholder={String(parseInt(form.monthlyDues || '0') * 12 || settings.defaultMonthlyDues * 12)}
+                    value={form.annualDues}
+                    onChange={(e) => setForm({ ...form, annualDues: e.target.value })}
+                  />
+                  <p className="text-xs text-gray-400 mt-0.5">비워두면 월회비×12 자동 계산</p>
+                </div>
+              )}
               <div>
                 <label className="text-xs text-gray-500">가입 연월</label>
                 <input
@@ -261,14 +303,40 @@ export default function MemberManager({ members, setMembers, settings, setSettin
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs text-gray-500">월 회비</label>
-                      <input
-                        type="number"
+                      <label className="text-xs text-gray-500">납입 방식</label>
+                      <select
                         className="border rounded px-2 py-1.5 text-sm w-full mt-1"
-                        value={editForm.monthlyDues}
-                        onChange={(e) => setEditForm({ ...editForm, monthlyDues: e.target.value })}
-                      />
+                        value={editForm.paymentType}
+                        onChange={(e) =>
+                          setEditForm({ ...editForm, paymentType: e.target.value as PaymentType })
+                        }
+                      >
+                        <option value="monthly">월납</option>
+                        <option value="annual">일시납 (연간)</option>
+                      </select>
                     </div>
+                    {editForm.paymentType === 'monthly' ? (
+                      <div>
+                        <label className="text-xs text-gray-500">월 회비</label>
+                        <input
+                          type="number"
+                          className="border rounded px-2 py-1.5 text-sm w-full mt-1"
+                          value={editForm.monthlyDues}
+                          onChange={(e) => setEditForm({ ...editForm, monthlyDues: e.target.value })}
+                        />
+                      </div>
+                    ) : (
+                      <div>
+                        <label className="text-xs text-gray-500">연간 납입액</label>
+                        <input
+                          type="number"
+                          className="border rounded px-2 py-1.5 text-sm w-full mt-1"
+                          placeholder={String(parseInt(editForm.monthlyDues) * 12)}
+                          value={editForm.annualDues}
+                          onChange={(e) => setEditForm({ ...editForm, annualDues: e.target.value })}
+                        />
+                      </div>
+                    )}
                     <div>
                       <label className="text-xs text-gray-500">가입 연월</label>
                       <input
@@ -278,7 +346,7 @@ export default function MemberManager({ members, setMembers, settings, setSettin
                         onChange={(e) => setEditForm({ ...editForm, joinDate: e.target.value })}
                       />
                     </div>
-                    <div className="col-span-2">
+                    <div>
                       <label className="text-xs text-gray-500">입금자명 별칭 (쉼표 구분)</label>
                       <input
                         className="border rounded px-2 py-1.5 text-sm w-full mt-1"
@@ -312,8 +380,17 @@ export default function MemberManager({ members, setMembers, settings, setSettin
                           주장
                         </span>
                       )}
+                      <span className={`text-xs px-1.5 py-0.5 rounded ${
+                        (m.paymentType ?? 'monthly') === 'annual'
+                          ? 'bg-purple-100 text-purple-700'
+                          : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {(m.paymentType ?? 'monthly') === 'annual' ? '일시납' : '월납'}
+                      </span>
                       <span className="text-xs text-gray-500">
-                        월 {formatKRW(m.monthlyDues)}
+                        {(m.paymentType ?? 'monthly') === 'annual'
+                          ? `연 ${formatKRW(getAnnualDues(m))}`
+                          : `월 ${formatKRW(m.monthlyDues)}`}
                       </span>
                     </div>
                     {m.aliases.length > 0 && (
