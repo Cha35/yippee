@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Upload, RefreshCw, AlertTriangle, ChevronDown, ChevronUp, Edit2, Trash2, Check, X } from 'lucide-react'
+import { Upload, RefreshCw, AlertTriangle, ChevronDown, ChevronUp, Edit2, Trash2, Check, X, Sparkles, KeyRound } from 'lucide-react'
 import type { Member, Transaction, DuesStatus } from '../types'
 import { parseKakaoBankCSV, type ParseResult } from '../utils/csvParser'
 import {
@@ -9,6 +9,7 @@ import {
   getMonthsBetween,
   matchTransactionToMember,
 } from '../utils/calculations'
+import { matchTransactionsWithAI } from '../utils/claudeApi'
 
 interface Props {
   members: Member[]
@@ -38,6 +39,11 @@ export default function DuesTracker({
     date: string
     memberId: string
   } | null>(null)
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('anthropic_api_key') || '')
+  const [showApiKey, setShowApiKey] = useState(false)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiError, setAiError] = useState('')
+  const [aiResults, setAiResults] = useState<{ txId: string; memberId: string | null; confidence: string; reason: string }[]>([])
 
   const activeMembers = members.filter((m) => m.active)
 
@@ -155,6 +161,38 @@ export default function DuesTracker({
   function deleteTx(id: string) {
     if (!confirm('이 거래 내역을 삭제하시겠습니까?')) return
     setTransactions(transactions.filter((tx) => tx.id !== id))
+  }
+
+  function saveApiKey(key: string) {
+    setApiKey(key)
+    localStorage.setItem('anthropic_api_key', key)
+  }
+
+  async function runAiMatching() {
+    if (!apiKey) { setShowApiKey(true); return }
+    const unmatched = transactions.filter((tx) => tx.type === '입금' && !tx.memberId)
+    if (unmatched.length === 0) return
+    setAiLoading(true)
+    setAiError('')
+    setAiResults([])
+    try {
+      const results = await matchTransactionsWithAI(apiKey, unmatched, members)
+      setAiResults(results)
+      // 신뢰도 high/medium인 것은 자동 적용
+      const highConfidence = results.filter((r) => r.memberId && (r.confidence === 'high' || r.confidence === 'medium'))
+      if (highConfidence.length > 0) {
+        setTransactions(
+          transactions.map((tx) => {
+            const match = highConfidence.find((r) => r.txId === tx.id)
+            return match ? { ...tx, memberId: match.memberId ?? undefined } : tx
+          })
+        )
+      }
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : 'AI 분류 실패')
+    } finally {
+      setAiLoading(false)
+    }
   }
 
   const selectedStatus = selectedCell
@@ -333,35 +371,97 @@ export default function DuesTracker({
       {/* 미매칭 입금 */}
       {unmatchedTxs.length > 0 && (
         <div className="bg-white rounded-xl shadow p-5">
-          <button
-            className="flex items-center gap-2 text-sm font-medium text-yellow-700 w-full"
-            onClick={() => setShowUnmatched(!showUnmatched)}
-          >
-            <AlertTriangle size={15} />
-            미매칭 입금 {unmatchedTxs.length}건
-            {showUnmatched ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </button>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <button
+              className="flex items-center gap-2 text-sm font-medium text-yellow-700"
+              onClick={() => setShowUnmatched(!showUnmatched)}
+            >
+              <AlertTriangle size={15} />
+              미매칭 입금 {unmatchedTxs.length}건
+              {showUnmatched ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowApiKey(!showApiKey)}
+                className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 border rounded px-2 py-1"
+              >
+                <KeyRound size={12} /> API 키
+              </button>
+              <button
+                onClick={runAiMatching}
+                disabled={aiLoading}
+                className="flex items-center gap-1 text-xs bg-purple-600 text-white px-3 py-1.5 rounded-lg hover:bg-purple-700 disabled:opacity-50"
+              >
+                {aiLoading ? <RefreshCw size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                AI 자동 분류
+              </button>
+            </div>
+          </div>
+
+          {/* API 키 입력 */}
+          {showApiKey && (
+            <div className="mt-3 flex items-center gap-2">
+              <input
+                type="password"
+                placeholder="sk-ant-api03-..."
+                className="border rounded px-3 py-1.5 text-xs flex-1 font-mono"
+                value={apiKey}
+                onChange={(e) => saveApiKey(e.target.value)}
+              />
+              <button
+                onClick={() => setShowApiKey(false)}
+                className="text-xs text-gray-500 hover:text-gray-700 border rounded px-2 py-1.5"
+              >
+                저장
+              </button>
+            </div>
+          )}
+
+          {aiError && (
+            <p className="mt-2 text-xs text-red-500 flex items-center gap-1">
+              <AlertTriangle size={12} /> {aiError}
+            </p>
+          )}
+
+          {aiResults.length > 0 && (
+            <p className="mt-2 text-xs text-purple-600">
+              AI 분류 완료: 신뢰도 high/medium {aiResults.filter((r) => r.memberId && (r.confidence === 'high' || r.confidence === 'medium')).length}건 자동 적용됨
+            </p>
+          )}
+
           {showUnmatched && (
             <div className="mt-3 divide-y divide-gray-100">
-              {unmatchedTxs.map((tx) => (
-                <div key={tx.id} className="py-2 flex items-center gap-3 text-sm">
-                  <div className="flex-1">
-                    <span className="font-medium">{tx.depositorName}</span>
-                    <span className="text-gray-400 text-xs ml-2">{tx.date}</span>
-                    <span className="text-blue-600 font-medium ml-2">{formatKRW(tx.amount)}</span>
+              {unmatchedTxs.map((tx) => {
+                const aiResult = aiResults.find((r) => r.txId === tx.id)
+                return (
+                  <div key={tx.id} className="py-2 flex items-center gap-3 text-sm">
+                    <div className="flex-1">
+                      <span className="font-medium">{tx.depositorName}</span>
+                      <span className="text-gray-400 text-xs ml-2">{tx.date}</span>
+                      <span className="text-blue-600 font-medium ml-2">{formatKRW(tx.amount)}</span>
+                      {aiResult && (
+                        <span className={`text-xs ml-2 px-1.5 py-0.5 rounded ${
+                          aiResult.confidence === 'high' ? 'bg-green-100 text-green-700' :
+                          aiResult.confidence === 'medium' ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-gray-100 text-gray-500'
+                        }`}>
+                          AI: {aiResult.reason}
+                        </span>
+                      )}
+                    </div>
+                    <select
+                      className="border rounded px-2 py-1 text-xs"
+                      defaultValue=""
+                      onChange={(e) => assignTransaction(tx.id, e.target.value)}
+                    >
+                      <option value="">팀원 선택</option>
+                      {members.filter((m) => m.active).map((m) => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                      ))}
+                    </select>
                   </div>
-                  <select
-                    className="border rounded px-2 py-1 text-xs"
-                    defaultValue=""
-                    onChange={(e) => assignTransaction(tx.id, e.target.value)}
-                  >
-                    <option value="">팀원 선택</option>
-                    {members.filter((m) => m.active).map((m) => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))}
-                  </select>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
