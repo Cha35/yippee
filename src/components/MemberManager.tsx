@@ -112,7 +112,12 @@ export default function MemberManager({ members, setMembers, settings, setSettin
     // 유효한 규칙만 (시작월 입력된 것), 시작월순 정렬
     const duesRules = editForm.duesRules
       .filter((r) => r.fromMonth)
-      .map((r) => ({ ...r, monthlyDues: r.monthlyDues || 0, note: r.note?.trim() || undefined }))
+      .map((r) => ({
+        ...r,
+        toMonth: r.toMonth || undefined,
+        monthlyDues: r.monthlyDues || 0,
+        note: r.note?.trim() || undefined,
+      }))
       .sort((a, b) => (a.fromMonth > b.fromMonth ? 1 : -1))
     setMembers(
       members.map((m) =>
@@ -489,7 +494,7 @@ export default function MemberManager({ members, setMembers, settings, setSettin
                           <div className="space-y-2">
                             {editForm.duesRules.map((rule, idx) => (
                               <div key={idx} className="bg-white rounded border border-gray-200 p-2 grid grid-cols-12 gap-2 items-end">
-                                <div className="col-span-4">
+                                <div className="col-span-3">
                                   <label className="text-[11px] text-gray-500">시작월</label>
                                   <input
                                     type="month"
@@ -499,6 +504,15 @@ export default function MemberManager({ members, setMembers, settings, setSettin
                                   />
                                 </div>
                                 <div className="col-span-3">
+                                  <label className="text-[11px] text-gray-500">종료월(선택)</label>
+                                  <input
+                                    type="month"
+                                    className="border rounded px-1.5 py-1 text-xs w-full mt-0.5"
+                                    value={rule.toMonth ?? ''}
+                                    onChange={(e) => updateRule(idx, { toMonth: e.target.value })}
+                                  />
+                                </div>
+                                <div className="col-span-2">
                                   <label className="text-[11px] text-gray-500">월회비(0=면제)</label>
                                   <input
                                     type="number"
@@ -507,7 +521,7 @@ export default function MemberManager({ members, setMembers, settings, setSettin
                                     onChange={(e) => updateRule(idx, { monthlyDues: parseInt(e.target.value) || 0 })}
                                   />
                                 </div>
-                                <div className="col-span-4">
+                                <div className="col-span-3">
                                   <label className="text-[11px] text-gray-500">사유</label>
                                   <input
                                     className="border rounded px-1.5 py-1 text-xs w-full mt-0.5"
@@ -580,7 +594,7 @@ export default function MemberManager({ members, setMembers, settings, setSettin
                     {m.duesRules && m.duesRules.length > 0 && (
                       <p className="text-xs text-gray-400 mt-0.5">
                         {m.duesRules.map((r) =>
-                          `${r.fromMonth}~ ${r.monthlyDues === 0 ? '면제' : formatKRW(r.monthlyDues)}${r.note ? `(${r.note})` : ''}`
+                          `${r.fromMonth}~${r.toMonth ?? ''} ${r.monthlyDues === 0 ? '면제' : formatKRW(r.monthlyDues)}${r.note ? `(${r.note})` : ''}`
                         ).join(' · ')}
                       </p>
                     )}

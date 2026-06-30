@@ -57,7 +57,7 @@ export function getAnnualDues(member: Member): number {
 // 0 = 면제
 export function effectiveMonthlyDues(member: Member, ym: string): number {
   const applicable = (member.duesRules ?? [])
-    .filter((r) => r.fromMonth <= ym)
+    .filter((r) => r.fromMonth <= ym && (!r.toMonth || ym <= r.toMonth))
     .sort((a, b) => (a.fromMonth > b.fromMonth ? -1 : 1))
   if (applicable.length > 0) return applicable[0].monthlyDues
   return member.exempt ? 0 : member.monthlyDues

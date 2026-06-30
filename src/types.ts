@@ -16,6 +16,7 @@ export interface Member {
 
 export interface MemberDuesRule {
   fromMonth: string // YYYY-MM: 이 달부터 적용
+  toMonth?: string // YYYY-MM: 이 달까지 적용 (미설정 시 계속)
   monthlyDues: number // 0 = 면제
   note?: string // 사유 (예: 출석률 이슈, 부상 협의)
 }
