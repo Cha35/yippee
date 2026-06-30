@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Trash2, Edit2, Check, X, UserPlus } from 'lucide-react'
-import type { Member, Settings, PaymentType } from '../types'
+import { Trash2, Edit2, Check, X, UserPlus, Plus } from 'lucide-react'
+import type { Member, Settings, PaymentType, MemberDuesRule } from '../types'
 import { formatKRW, getAnnualDues } from '../utils/calculations'
 
 interface Props {
@@ -26,6 +26,8 @@ interface EditState {
   annualDues: string
   aliases: string
   joinDate: string
+  exempt: boolean
+  duesRules: MemberDuesRule[]
 }
 
 export default function MemberManager({ members, setMembers, settings, setSettings }: Props) {
@@ -39,6 +41,8 @@ export default function MemberManager({ members, setMembers, settings, setSettin
     annualDues: '',
     aliases: '',
     joinDate: thisMonth,
+    exempt: false,
+    duesRules: [],
   })
   const [editForm, setEditForm] = useState<EditState | null>(null)
   const [aliasInput, setAliasInput] = useState('')
@@ -52,6 +56,8 @@ export default function MemberManager({ members, setMembers, settings, setSettin
       annualDues: '',
       aliases: '',
       joinDate: thisMonth,
+      exempt: false,
+      duesRules: [],
     })
     setAliasInput('')
     setAdding(true)
@@ -92,6 +98,8 @@ export default function MemberManager({ members, setMembers, settings, setSettin
       annualDues: m.annualDues ? String(m.annualDues) : '',
       aliases: m.aliases.join(', '),
       joinDate: m.joinDate,
+      exempt: m.exempt ?? false,
+      duesRules: m.duesRules ? [...m.duesRules] : [],
     })
   }
 
@@ -101,6 +109,11 @@ export default function MemberManager({ members, setMembers, settings, setSettin
       .split(',')
       .map((a) => a.trim())
       .filter(Boolean)
+    // 유효한 규칙만 (시작월 입력된 것), 시작월순 정렬
+    const duesRules = editForm.duesRules
+      .filter((r) => r.fromMonth)
+      .map((r) => ({ ...r, monthlyDues: r.monthlyDues || 0, note: r.note?.trim() || undefined }))
+      .sort((a, b) => (a.fromMonth > b.fromMonth ? 1 : -1))
     setMembers(
       members.map((m) =>
         m.id === editForm.id
@@ -115,11 +128,32 @@ export default function MemberManager({ members, setMembers, settings, setSettin
                 : undefined,
               aliases,
               joinDate: editForm.joinDate,
+              exempt: editForm.exempt || undefined,
+              duesRules: duesRules.length > 0 ? duesRules : undefined,
             }
           : m
       )
     )
     setEditId(null)
+  }
+
+  function updateRule(idx: number, patch: Partial<MemberDuesRule>) {
+    if (!editForm) return
+    const rules = editForm.duesRules.map((r, i) => (i === idx ? { ...r, ...patch } : r))
+    setEditForm({ ...editForm, duesRules: rules })
+  }
+
+  function addRule() {
+    if (!editForm) return
+    setEditForm({
+      ...editForm,
+      duesRules: [...editForm.duesRules, { fromMonth: '', monthlyDues: 15000, note: '' }],
+    })
+  }
+
+  function removeRule(idx: number) {
+    if (!editForm) return
+    setEditForm({ ...editForm, duesRules: editForm.duesRules.filter((_, i) => i !== idx) })
   }
 
   function toggleActive(id: string) {
@@ -422,6 +456,82 @@ export default function MemberManager({ members, setMembers, settings, setSettin
                       />
                     </div>
                   </div>
+
+                  {/* 임의 회비 규칙 (월납 전용) */}
+                  {editForm.paymentType === 'monthly' && (
+                    <div className="border-t border-yellow-200 pt-3 space-y-2">
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={editForm.exempt}
+                          onChange={(e) => setEditForm({ ...editForm, exempt: e.target.checked })}
+                        />
+                        <span className="font-medium text-gray-700">회비 면제 (기본)</span>
+                        <span className="text-xs text-gray-400">예: 주전 포수 — 평소 면제</span>
+                      </label>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-xs font-medium text-gray-600">특정월부터 회비 변경</p>
+                          <button
+                            onClick={addRule}
+                            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
+                          >
+                            <Plus size={12} /> 규칙 추가
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-400 mb-2">
+                          면제 해제(5월부터 징수), 감면(부상자 1.5만원) 등을 시작월 기준으로 설정
+                        </p>
+                        {editForm.duesRules.length === 0 ? (
+                          <p className="text-xs text-gray-300">규칙 없음</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {editForm.duesRules.map((rule, idx) => (
+                              <div key={idx} className="bg-white rounded border border-gray-200 p-2 grid grid-cols-12 gap-2 items-end">
+                                <div className="col-span-4">
+                                  <label className="text-[11px] text-gray-500">시작월</label>
+                                  <input
+                                    type="month"
+                                    className="border rounded px-1.5 py-1 text-xs w-full mt-0.5"
+                                    value={rule.fromMonth}
+                                    onChange={(e) => updateRule(idx, { fromMonth: e.target.value })}
+                                  />
+                                </div>
+                                <div className="col-span-3">
+                                  <label className="text-[11px] text-gray-500">월회비(0=면제)</label>
+                                  <input
+                                    type="number"
+                                    className="border rounded px-1.5 py-1 text-xs w-full mt-0.5"
+                                    value={rule.monthlyDues}
+                                    onChange={(e) => updateRule(idx, { monthlyDues: parseInt(e.target.value) || 0 })}
+                                  />
+                                </div>
+                                <div className="col-span-4">
+                                  <label className="text-[11px] text-gray-500">사유</label>
+                                  <input
+                                    className="border rounded px-1.5 py-1 text-xs w-full mt-0.5"
+                                    placeholder="출석률/부상"
+                                    value={rule.note ?? ''}
+                                    onChange={(e) => updateRule(idx, { note: e.target.value })}
+                                  />
+                                </div>
+                                <div className="col-span-1 flex justify-center">
+                                  <button
+                                    onClick={() => removeRule(idx)}
+                                    className="p-1 text-gray-400 hover:text-red-500"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex gap-2">
                     <button
                       onClick={saveEdit}
@@ -457,9 +567,23 @@ export default function MemberManager({ members, setMembers, settings, setSettin
                       <span className="text-xs text-gray-500">
                         {(m.paymentType ?? 'monthly') === 'annual'
                           ? `연 ${formatKRW(getAnnualDues(m))}`
+                          : m.exempt
+                          ? '면제'
                           : `월 ${formatKRW(m.monthlyDues)}`}
                       </span>
+                      {m.duesRules && m.duesRules.length > 0 && (
+                        <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">
+                          규칙 {m.duesRules.length}
+                        </span>
+                      )}
                     </div>
+                    {m.duesRules && m.duesRules.length > 0 && (
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {m.duesRules.map((r) =>
+                          `${r.fromMonth}~ ${r.monthlyDues === 0 ? '면제' : formatKRW(r.monthlyDues)}${r.note ? `(${r.note})` : ''}`
+                        ).join(' · ')}
+                      </p>
+                    )}
                     {m.aliases.length > 0 && (
                       <p className="text-xs text-gray-400 mt-0.5">
                         별칭: {m.aliases.join(', ')}

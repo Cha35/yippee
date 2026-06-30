@@ -227,6 +227,9 @@ export default function DuesTracker({
                   <span className="flex items-center gap-1">
                     <span className="w-3 h-3 rounded-sm bg-purple-200 inline-block" /> 일시납
                   </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-3 h-3 rounded-sm bg-gray-200 inline-block" /> 면제
+                  </span>
                   {leagueFeeStartMonth && monthlyLeagueFee && (
                     <span className="flex items-center gap-1 text-orange-500">
                       <span className="w-3 h-3 rounded-sm bg-orange-100 inline-block" /> 리그비포함
@@ -351,8 +354,9 @@ export default function DuesTracker({
                           const s = getStatus(member.id, ym)
                           const isSelected =
                             selectedCell?.memberId === member.id && selectedCell?.ym === ym
-                          const cellClass =
-                            s?.status === 'paid'
+                          const cellClass = s?.exempt
+                            ? 'bg-gray-100 text-gray-400 hover:bg-gray-200'
+                            : s?.status === 'paid'
                               ? 'bg-green-100 text-green-700 hover:bg-green-200'
                               : s?.status === 'partial'
                               ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
@@ -370,7 +374,9 @@ export default function DuesTracker({
                               <span
                                 className={`inline-flex flex-col items-center justify-center w-14 h-10 rounded-lg text-xs font-medium transition-all ${cellClass} ${isSelected ? 'ring-2 ring-blue-400' : ''}`}
                               >
-                                {s?.status === 'paid'
+                                {s?.exempt
+                                  ? '면제'
+                                  : s?.status === 'paid'
                                   ? '✓'
                                   : s?.status === 'partial'
                                   ? `${Math.round(((s?.paid ?? 0) / (s?.required || 1)) * 100)}%`

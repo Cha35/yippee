@@ -53,6 +53,16 @@ export function getAnnualDues(member: Member): number {
   return member.annualDues ?? member.monthlyDues * 12
 }
 
+// 특정 월에 적용되는 월회비 (면제/감면/특정월부터 변경 규칙 반영)
+// 0 = 면제
+export function effectiveMonthlyDues(member: Member, ym: string): number {
+  const applicable = (member.duesRules ?? [])
+    .filter((r) => r.fromMonth <= ym)
+    .sort((a, b) => (a.fromMonth > b.fromMonth ? -1 : 1))
+  if (applicable.length > 0) return applicable[0].monthlyDues
+  return member.exempt ? 0 : member.monthlyDues
+}
+
 // 거래가 특정 월에 회비로 기여하는 금액
 // duesAllocations가 있으면 거래일 기준 자동집계 대신 배분만 사용
 export function duesContribution(tx: Transaction, ym: string): number {
@@ -178,9 +188,12 @@ export function computeDuesStatuses(
         )
 
         const paid = monthTxs.reduce((sum, tx) => sum + duesContribution(tx, ym), 0)
-        // 리그비 기간이면 required에 추가
-        const leagueExtra = isLeagueFeeMonth(ym) ? (monthlyLeagueFee ?? 0) : 0
-        const required = member.monthlyDues + leagueExtra
+        // 면제/감면 반영한 기본 월회비
+        const baseDues = effectiveMonthlyDues(member, ym)
+        const isExempt = baseDues === 0
+        // 리그비 기간이면 required에 추가 (면제자는 리그비도 면제)
+        const leagueExtra = isExempt ? 0 : isLeagueFeeMonth(ym) ? (monthlyLeagueFee ?? 0) : 0
+        const required = baseDues + leagueExtra
         const overrideKey = `${member.id}:${ym}`
         const override = manualOverrides[overrideKey]
 
@@ -192,6 +205,8 @@ export function computeDuesStatuses(
           status = 'paid'
         } else if (override === 'unpaid') {
           status = 'unpaid'
+        } else if (isExempt) {
+          status = 'paid'
         } else if (beforeDuesStart) {
           status = 'paid'
         } else if (paid >= required) {
@@ -210,6 +225,7 @@ export function computeDuesStatuses(
           status,
           manualOverride: override,
           transactions: monthTxs,
+          exempt: isExempt,
         })
       }
     }

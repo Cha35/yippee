@@ -10,6 +10,14 @@ export interface Member {
   aliases: string[]
   active: boolean
   joinDate: string // YYYY-MM
+  exempt?: boolean // 회비 면제 (기본값). 특정월부터 징수 시 duesRules로 재정의
+  duesRules?: MemberDuesRule[] // 특정월부터 월회비 변경 (면제 해제, 감면 등)
+}
+
+export interface MemberDuesRule {
+  fromMonth: string // YYYY-MM: 이 달부터 적용
+  monthlyDues: number // 0 = 면제
+  note?: string // 사유 (예: 출석률 이슈, 부상 협의)
 }
 
 export interface Transaction {
@@ -72,6 +80,7 @@ export interface DuesStatus {
   status: 'paid' | 'partial' | 'unpaid' | 'annual_paid' | 'annual_unpaid'
   manualOverride?: 'paid' | 'unpaid'
   transactions: Transaction[]
+  exempt?: boolean // 이 달 회비 면제
   // 리그비 추가 징수 기간 필드 (leagueFeeStartMonth 이후 월에만 설정)
   leagueFeeRequired?: number
   leagueFeePaid?: number
