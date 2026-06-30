@@ -598,39 +598,29 @@ export default function DuesTracker({
                           const lfStatus = s?.leagueFeeStatus
                           const isLeague = isLeagueFeeMonth(ym)
 
-                          if (idx === 0) {
-                            return (
-                              <td
-                                key={ym}
-                                className={`px-2 py-2 text-center cursor-pointer ${isLeague ? 'bg-orange-50' : ''}`}
-                                onClick={() =>
-                                  setSelectedCell(isSelected ? null : { memberId: member.id, ym })
-                                }
-                              >
-                                <span
-                                  className={`inline-flex flex-col items-center justify-center w-14 h-10 rounded-lg text-xs font-medium transition-all ${
-                                    isPaid
+                          return (
+                            <td
+                              key={ym}
+                              className={`px-2 py-2 text-center cursor-pointer ${isLeague ? 'bg-orange-50' : ''}`}
+                              onClick={() =>
+                                setSelectedCell(isSelected ? null : { memberId: member.id, ym })
+                              }
+                            >
+                              <span
+                                className={`inline-flex flex-col items-center justify-center w-14 h-10 rounded-lg text-xs font-medium transition-all ${
+                                  idx === 0
+                                    ? isPaid
                                       ? 'bg-purple-100 text-purple-700 hover:bg-purple-200'
                                       : 'bg-red-50 text-red-500 hover:bg-red-100'
-                                  } ${isSelected ? 'ring-2 ring-blue-400' : ''}`}
-                                >
-                                  {isPaid ? '일시납✓' : '미납'}
-                                  {annualStatus?.manualOverride && (
-                                    <span className="text-[10px] opacity-60">수동</span>
-                                  )}
-                                </span>
-                              </td>
-                            )
-                          }
-                          // 나머지 월은 연간 상태를 이어받아 표시 (작게)
-                          return (
-                            <td key={ym} className={`px-2 py-2 text-center ${isLeague ? 'bg-orange-50' : ''}`}>
-                              <span
-                                className={`inline-flex flex-col items-center justify-center w-14 h-10 rounded-lg text-xs ${
-                                  isPaid ? 'bg-purple-50 text-purple-400' : 'bg-red-50 text-red-300'
-                                }`}
+                                    : isPaid
+                                    ? 'bg-purple-50 text-purple-400 hover:bg-purple-100'
+                                    : 'bg-red-50 text-red-300 hover:bg-red-100'
+                                } ${isSelected ? 'ring-2 ring-blue-400' : ''}`}
                               >
-                                {isPaid ? '✓' : '✗'}
+                                {idx === 0 ? (isPaid ? '일시납✓' : '미납') : (isPaid ? '✓' : '✗')}
+                                {idx === 0 && annualStatus?.manualOverride && (
+                                  <span className="text-[10px] opacity-60">수동</span>
+                                )}
                                 {isLeague && lfStatus && (
                                   <span className={`text-[9px] font-semibold ${lfStatus === 'paid' ? 'text-orange-500' : 'text-red-400'}`}>
                                     {lfStatus === 'paid' ? '리그✓' : '리그✗'}

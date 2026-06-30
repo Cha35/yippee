@@ -114,7 +114,7 @@ export default function App() {
           />
         )}
         {tab === 'expenses' && (
-          <ExpenseManager expenses={expenses} setExpenses={setExpenses} />
+          <ExpenseManager expenses={expenses} setExpenses={setExpenses} transactions={transactions} />
         )}
         {tab === 'league' && (
           <LeaguePlanner

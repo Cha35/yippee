@@ -1,11 +1,21 @@
 import { useState, useRef } from 'react'
 import { Plus, Trash2, Image } from 'lucide-react'
-import type { Expense, ExpenseCategory } from '../types'
+import type { Expense, ExpenseCategory, Transaction } from '../types'
 import { formatKRW } from '../utils/calculations'
 
 interface Props {
   expenses: Expense[]
   setExpenses: (e: Expense[]) => void
+  transactions: Transaction[]
+}
+
+function categorizeOutflow(tx: Transaction): ExpenseCategory {
+  const text = (tx.description + ' ' + tx.depositorName).toLowerCase()
+  if (/리그|참가비/.test(text)) return '리그참가비'
+  if (/유니폼|유니/.test(text)) return '유니폼'
+  if (/구장|대관|필드|풋살|축구/.test(text)) return '운영비'
+  if (/간식|음료|식사|점심|저녁/.test(text)) return '운영비'
+  return '기타'
 }
 
 const CATEGORIES: ExpenseCategory[] = ['리그참가비', '유니폼', '운영비', '기타']
@@ -20,7 +30,7 @@ function generateId() {
   return `exp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 }
 
-export default function ExpenseManager({ expenses, setExpenses }: Props) {
+export default function ExpenseManager({ expenses, setExpenses, transactions }: Props) {
   const [adding, setAdding] = useState(false)
   const [filterCategory, setFilterCategory] = useState<ExpenseCategory | 'all'>('all')
   const [previewReceipt, setPreviewReceipt] = useState<string | null>(null)
@@ -85,6 +95,24 @@ export default function ExpenseManager({ expenses, setExpenses }: Props) {
   }
 
   const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0)
+
+  // 자동 집계: 출금 거래
+  const autoOutflows = [...transactions]
+    .filter((tx) => tx.type === '출금')
+    .sort((a, b) => (a.date > b.date ? -1 : 1))
+
+  // 자동 집계: 비회비 수입 (이자 + 미매칭 입금)
+  const autoIncome = [...transactions]
+    .filter((tx) => {
+      if (tx.type !== '입금') return false
+      const text = (tx.description + ' ' + tx.depositorName).toLowerCase()
+      if (/이자/.test(text)) return true
+      return !tx.memberId
+    })
+    .sort((a, b) => (a.date > b.date ? -1 : 1))
+
+  const totalAutoOutflow = autoOutflows.reduce((s, t) => s + t.amount, 0)
+  const totalAutoIncome = autoIncome.reduce((s, t) => s + t.amount, 0)
 
   return (
     <div className="space-y-6">
@@ -257,6 +285,75 @@ export default function ExpenseManager({ expenses, setExpenses }: Props) {
           </ul>
         )}
       </div>
+
+      {/* 자동 집계: 출금 내역 */}
+      {autoOutflows.length > 0 && (
+        <div className="bg-white rounded-xl shadow p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-base font-semibold text-gray-700">거래내역 자동 지출</h2>
+              <p className="text-xs text-gray-400">은행 출금 거래 기반 자동 집계 — 총 {formatKRW(totalAutoOutflow)}</p>
+            </div>
+          </div>
+          <ul className="divide-y divide-gray-100">
+            {autoOutflows.map((tx) => {
+              const cat = categorizeOutflow(tx)
+              return (
+                <li key={tx.id} className="py-3 flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-gray-800 text-sm">
+                        {tx.description || tx.depositorName}
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${CATEGORY_COLORS[cat]}`}>
+                        {cat}
+                      </span>
+                    </div>
+                    <span className="text-xs text-gray-400">{tx.date}</span>
+                  </div>
+                  <span className="font-bold text-red-500 text-sm">{formatKRW(tx.amount)}</span>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+
+      {/* 자동 집계: 기타 수입 (이자 + 비회비 입금) */}
+      {autoIncome.length > 0 && (
+        <div className="bg-white rounded-xl shadow p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-base font-semibold text-gray-700">기타 수입</h2>
+              <p className="text-xs text-gray-400">이자 · 용병게임비 · 기타 입금 — 총 {formatKRW(totalAutoIncome)}</p>
+            </div>
+          </div>
+          <ul className="divide-y divide-gray-100">
+            {autoIncome.map((tx) => {
+              const text = (tx.description + ' ' + tx.depositorName).toLowerCase()
+              const isInterest = /이자/.test(text)
+              return (
+                <li key={tx.id} className="py-3 flex items-center justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-gray-800 text-sm">
+                        {tx.depositorName || tx.description}
+                      </span>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        isInterest ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {isInterest ? '이자' : '기타 입금'}
+                      </span>
+                    </div>
+                    <span className="text-xs text-gray-400">{tx.date}</span>
+                  </div>
+                  <span className="font-bold text-blue-600 text-sm">{formatKRW(tx.amount)}</span>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
 
       {previewReceipt && (
         <div
