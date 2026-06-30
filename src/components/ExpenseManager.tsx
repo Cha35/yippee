@@ -303,7 +303,7 @@ export default function ExpenseManager({ expenses, setExpenses, transactions }: 
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium text-gray-800 text-sm">
-                        {tx.description || tx.depositorName}
+                        {tx.description || tx.depositorName || '(내용 없음)'}
                       </span>
                       <span className={`text-xs px-2 py-0.5 rounded-full ${CATEGORY_COLORS[cat]}`}>
                         {cat}
@@ -337,7 +337,7 @@ export default function ExpenseManager({ expenses, setExpenses, transactions }: 
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium text-gray-800 text-sm">
-                        {tx.depositorName || tx.description}
+                        {tx.depositorName || '(입금자 없음)'}
                       </span>
                       <span className={`text-xs px-2 py-0.5 rounded-full ${
                         isInterest ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'
@@ -346,6 +346,9 @@ export default function ExpenseManager({ expenses, setExpenses, transactions }: 
                       </span>
                     </div>
                     <span className="text-xs text-gray-400">{tx.date}</span>
+                    {tx.description && (
+                      <span className="text-xs text-gray-500 block mt-0.5">내용: {tx.description}</span>
+                    )}
                   </div>
                   <span className="font-bold text-blue-600 text-sm">{formatKRW(tx.amount)}</span>
                 </li>

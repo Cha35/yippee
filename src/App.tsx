@@ -3,6 +3,7 @@ import type { Member, Transaction, Expense, LeaguePlan, Settings } from './types
 import { useLocalStorage } from './hooks/useLocalStorage'
 import Dashboard from './components/Dashboard'
 import MemberManager from './components/MemberManager'
+import TransactionManager from './components/TransactionManager'
 import DuesTracker from './components/DuesTracker'
 import ExpenseManager from './components/ExpenseManager'
 import LeaguePlanner from './components/LeaguePlanner'
@@ -10,12 +11,13 @@ import { LayoutDashboard, Users, CreditCard, Receipt, Target } from 'lucide-reac
 import { INITIAL_MEMBERS } from './data/initialMembers'
 import { INITIAL_TRANSACTIONS } from './data/initialTransactions'
 
-type Tab = 'dashboard' | 'members' | 'dues' | 'expenses' | 'league'
+type Tab = 'dashboard' | 'members' | 'transactions' | 'dues' | 'expenses' | 'league'
 
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
   { id: 'dashboard', label: '대시보드', icon: <LayoutDashboard size={17} /> },
   { id: 'members', label: '팀원', icon: <Users size={17} /> },
-  { id: 'dues', label: '납입현황', icon: <CreditCard size={17} /> },
+  { id: 'transactions', label: '입출금 내역', icon: <CreditCard size={17} /> },
+  { id: 'dues', label: '회비 납입 현황', icon: <CreditCard size={17} /> },
   { id: 'expenses', label: '지출', icon: <Receipt size={17} /> },
   { id: 'league', label: '리그계획', icon: <Target size={17} /> },
 ]
@@ -103,11 +105,17 @@ export default function App() {
             setSettings={setSettings}
           />
         )}
+        {tab === 'transactions' && (
+          <TransactionManager
+            members={members}
+            transactions={transactions}
+            setTransactions={setTransactions}
+          />
+        )}
         {tab === 'dues' && (
           <DuesTracker
             members={members}
             transactions={transactions}
-            setTransactions={setTransactions}
             manualOverrides={manualOverrides}
             setManualOverrides={setManualOverrides}
             settings={settings}
