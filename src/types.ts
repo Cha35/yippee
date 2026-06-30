@@ -23,6 +23,9 @@ export interface Transaction {
   memberId?: string
   isManualEntry: boolean
   manuallyVerified?: boolean
+  category?: 'dues' | 'general' | 'interest'
+  reason?: string
+  includedInDues?: boolean
 }
 
 export type ExpenseCategory = '리그참가비' | '유니폼' | '운영비' | '기타'
