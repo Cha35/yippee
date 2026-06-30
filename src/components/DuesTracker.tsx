@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react'
 import { Upload, RefreshCw, AlertTriangle, ChevronDown, ChevronUp, Edit2, Trash2, Check, X, Sparkles, KeyRound } from 'lucide-react'
-import type { Member, Transaction, DuesStatus } from '../types'
+import type { Member, Transaction, DuesStatus, Settings } from '../types'
 import { parseKakaoBankCSV, type ParseResult } from '../utils/csvParser'
 import {
   computeDuesStatuses,
@@ -17,6 +17,7 @@ interface Props {
   setTransactions: (t: Transaction[]) => void
   manualOverrides: Record<string, 'paid' | 'unpaid'>
   setManualOverrides: (o: Record<string, 'paid' | 'unpaid'>) => void
+  settings: Settings
 }
 
 export default function DuesTracker({
@@ -25,6 +26,7 @@ export default function DuesTracker({
   setTransactions,
   manualOverrides,
   setManualOverrides,
+  settings,
 }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [parseErrors, setParseErrors] = useState<string[]>([])
@@ -66,7 +68,18 @@ export default function DuesTracker({
   const yearEnd = `${selectedYear}-12`
   const months = getMonthsBetween(yearStart, yearEnd)
 
-  const statuses = computeDuesStatuses(activeMembers, transactions, months, manualOverrides)
+  const { leagueFeeStartMonth, monthlyLeagueFee } = settings
+  const isLeagueFeeMonth = (ym: string) =>
+    !!(leagueFeeStartMonth && monthlyLeagueFee && monthlyLeagueFee > 0 && leagueFeeStartMonth <= ym)
+
+  const statuses = computeDuesStatuses(
+    activeMembers,
+    transactions,
+    months,
+    manualOverrides,
+    leagueFeeStartMonth,
+    monthlyLeagueFee
+  )
 
   function getStatus(memberId: string, ym: string): DuesStatus | undefined {
     return statuses.find((s) => s.memberId === memberId && s.yearMonth === ym)
@@ -494,7 +507,7 @@ export default function DuesTracker({
                     ))}
                   </select>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-gray-500">
+                <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
                   <span className="flex items-center gap-1">
                     <span className="w-3 h-3 rounded-sm bg-green-200 inline-block" /> 납입
                   </span>
@@ -507,6 +520,11 @@ export default function DuesTracker({
                   <span className="flex items-center gap-1">
                     <span className="w-3 h-3 rounded-sm bg-purple-200 inline-block" /> 일시납
                   </span>
+                  {leagueFeeStartMonth && monthlyLeagueFee && (
+                    <span className="flex items-center gap-1 text-orange-500">
+                      <span className="w-3 h-3 rounded-sm bg-orange-100 inline-block" /> 리그비포함
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -518,14 +536,27 @@ export default function DuesTracker({
                   <th className="text-left px-4 py-3 text-xs text-gray-500 font-medium sticky left-0 bg-gray-50 min-w-[90px]">
                     팀원
                   </th>
-                  {months.map((ym) => (
-                    <th
-                      key={ym}
-                      className="px-2 py-3 text-xs text-gray-500 font-medium text-center min-w-[60px]"
-                    >
-                      {parseInt(ym.split('-')[1])}월
-                    </th>
-                  ))}
+                  {months.map((ym) => {
+                    const isLeague = isLeagueFeeMonth(ym)
+                    const isFirst = isLeague && ym === leagueFeeStartMonth
+                    return (
+                      <th
+                        key={ym}
+                        className={`px-2 py-3 text-xs font-medium text-center min-w-[60px] relative ${
+                          isLeague ? 'bg-orange-50 text-orange-600' : 'text-gray-500'
+                        }`}
+                      >
+                        {isFirst && (
+                          <span className="absolute top-1 left-0 right-0 text-[9px] text-orange-400 text-center leading-none">
+                            리그비↓
+                          </span>
+                        )}
+                        <span className={isFirst ? 'mt-2 block' : ''}>
+                          {parseInt(ym.split('-')[1])}월
+                        </span>
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -563,12 +594,15 @@ export default function DuesTracker({
                           const isSelected =
                             selectedCell?.memberId === member.id && selectedCell?.ym === ym
 
+                          const s = getStatus(member.id, ym)
+                          const lfStatus = s?.leagueFeeStatus
+                          const isLeague = isLeagueFeeMonth(ym)
+
                           if (idx === 0) {
                             return (
                               <td
                                 key={ym}
-                                className="px-2 py-2 text-center cursor-pointer"
-                                colSpan={1}
+                                className={`px-2 py-2 text-center cursor-pointer ${isLeague ? 'bg-orange-50' : ''}`}
                                 onClick={() =>
                                   setSelectedCell(isSelected ? null : { memberId: member.id, ym })
                                 }
@@ -590,13 +624,18 @@ export default function DuesTracker({
                           }
                           // 나머지 월은 연간 상태를 이어받아 표시 (작게)
                           return (
-                            <td key={ym} className="px-2 py-2 text-center">
+                            <td key={ym} className={`px-2 py-2 text-center ${isLeague ? 'bg-orange-50' : ''}`}>
                               <span
-                                className={`inline-flex items-center justify-center w-14 h-10 rounded-lg text-xs ${
+                                className={`inline-flex flex-col items-center justify-center w-14 h-10 rounded-lg text-xs ${
                                   isPaid ? 'bg-purple-50 text-purple-400' : 'bg-red-50 text-red-300'
                                 }`}
                               >
                                 {isPaid ? '✓' : '✗'}
+                                {isLeague && lfStatus && (
+                                  <span className={`text-[9px] font-semibold ${lfStatus === 'paid' ? 'text-orange-500' : 'text-red-400'}`}>
+                                    {lfStatus === 'paid' ? '리그✓' : '리그✗'}
+                                  </span>
+                                )}
                               </span>
                             </td>
                           )
@@ -604,9 +643,10 @@ export default function DuesTracker({
                       ) : (
                         // 월납
                         months.map((ym) => {
+                          const isLeague = isLeagueFeeMonth(ym)
                           if (!isMemberActive(member, ym)) {
                             return (
-                              <td key={ym} className="px-2 py-3 text-center">
+                              <td key={ym} className={`px-2 py-3 text-center ${isLeague ? 'bg-orange-50' : ''}`}>
                                 <span className="text-gray-300 text-xs">-</span>
                               </td>
                             )
@@ -623,7 +663,7 @@ export default function DuesTracker({
                           return (
                             <td
                               key={ym}
-                              className="px-2 py-2 text-center cursor-pointer"
+                              className={`px-2 py-2 text-center cursor-pointer ${isLeague ? 'bg-orange-50' : ''}`}
                               onClick={() =>
                                 setSelectedCell(
                                   isSelected ? null : { memberId: member.id, ym }

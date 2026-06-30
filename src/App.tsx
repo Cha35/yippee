@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import type { Member, Transaction, Expense, LeaguePlan, Settings } from './types'
 import { useLocalStorage } from './hooks/useLocalStorage'
-import { INITIAL_MEMBERS } from './data/initialMembers'
 import Dashboard from './components/Dashboard'
 import MemberManager from './components/MemberManager'
 import DuesTracker from './components/DuesTracker'
@@ -35,7 +34,7 @@ const DEFAULT_LEAGUE_PLAN: LeaguePlan = {
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('dashboard')
-  const [members, setMembers] = useLocalStorage<Member[]>('tdm:members', INITIAL_MEMBERS)
+  const [members, setMembers] = useLocalStorage<Member[]>('tdm:members', [])
   const [transactions, setTransactions] = useLocalStorage<Transaction[]>('tdm:transactions', [])
   const [expenses, setExpenses] = useLocalStorage<Expense[]>('tdm:expenses', [])
   const [leaguePlan, setLeaguePlan] = useLocalStorage<LeaguePlan>('tdm:leaguePlan', DEFAULT_LEAGUE_PLAN)
@@ -99,6 +98,7 @@ export default function App() {
             setTransactions={setTransactions}
             manualOverrides={manualOverrides}
             setManualOverrides={setManualOverrides}
+            settings={settings}
           />
         )}
         {tab === 'expenses' && (
