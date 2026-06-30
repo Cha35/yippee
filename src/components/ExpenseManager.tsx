@@ -10,7 +10,7 @@ interface Props {
 }
 
 function categorizeOutflow(tx: Transaction): ExpenseCategory {
-  const text = (tx.description + ' ' + tx.depositorName).toLowerCase()
+  const text = (tx.description + ' ' + (tx.memo ?? '') + ' ' + tx.depositorName).toLowerCase()
   if (/리그|참가비/.test(text)) return '리그참가비'
   if (/유니폼|유니/.test(text)) return '유니폼'
   if (/구장|대관|필드|풋살|축구/.test(text)) return '운영비'
@@ -83,19 +83,6 @@ export default function ExpenseManager({ expenses, setExpenses, transactions }: 
 
   const sorted = [...filtered].sort((a, b) => (a.date > b.date ? -1 : 1))
 
-  // Category summary
-  const categorySummary: Record<ExpenseCategory, number> = {
-    리그참가비: 0,
-    유니폼: 0,
-    운영비: 0,
-    기타: 0,
-  }
-  for (const e of expenses) {
-    categorySummary[e.category] += e.amount
-  }
-
-  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0)
-
   // 자동 집계: 출금 거래
   const autoOutflows = [...transactions]
     .filter((tx) => tx.type === '출금')
@@ -105,7 +92,7 @@ export default function ExpenseManager({ expenses, setExpenses, transactions }: 
   const autoIncome = [...transactions]
     .filter((tx) => {
       if (tx.type !== '입금') return false
-      const text = (tx.description + ' ' + tx.depositorName).toLowerCase()
+      const text = (tx.description + ' ' + (tx.memo ?? '') + ' ' + tx.depositorName).toLowerCase()
       if (/이자/.test(text)) return true
       return !tx.memberId
     })
@@ -113,6 +100,23 @@ export default function ExpenseManager({ expenses, setExpenses, transactions }: 
 
   const totalAutoOutflow = autoOutflows.reduce((s, t) => s + t.amount, 0)
   const totalAutoIncome = autoIncome.reduce((s, t) => s + t.amount, 0)
+
+  // Category summary — 수동 지출 + 거래내역 자동 출금 합산
+  const categorySummary: Record<ExpenseCategory, number> = {
+    리그참가비: 0,
+    유니폼: 0,
+    운영비: 0,
+    기타: 0,
+  }
+  for (const e of expenses) {
+    categorySummary[e.category] += e.amount
+  }
+  for (const tx of autoOutflows) {
+    categorySummary[categorizeOutflow(tx)] += tx.amount
+  }
+
+  const totalManualExpenses = expenses.reduce((sum, e) => sum + e.amount, 0)
+  const totalExpenses = totalManualExpenses + totalAutoOutflow
 
   return (
     <div className="space-y-6">
@@ -130,8 +134,10 @@ export default function ExpenseManager({ expenses, setExpenses, transactions }: 
       <div className="bg-white rounded-xl shadow p-5">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-base font-semibold text-gray-700">지출 내역</h2>
-            <p className="text-xs text-gray-400">총 {formatKRW(totalExpenses)}</p>
+            <h2 className="text-base font-semibold text-gray-700">수동 지출 내역</h2>
+            <p className="text-xs text-gray-400">
+              직접 입력 {formatKRW(totalManualExpenses)} · 전체(자동 포함) {formatKRW(totalExpenses)}
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <select
@@ -309,6 +315,10 @@ export default function ExpenseManager({ expenses, setExpenses, transactions }: 
                         {cat}
                       </span>
                     </div>
+                    <div className="text-xs text-gray-500 mt-0.5 space-y-0.5">
+                      {tx.description && <span className="block">내용: {tx.description}</span>}
+                      {tx.memo && <span className="block">메모: {tx.memo}</span>}
+                    </div>
                     <span className="text-xs text-gray-400">{tx.date}</span>
                   </div>
                   <span className="font-bold text-red-500 text-sm">{formatKRW(tx.amount)}</span>
@@ -330,7 +340,7 @@ export default function ExpenseManager({ expenses, setExpenses, transactions }: 
           </div>
           <ul className="divide-y divide-gray-100">
             {autoIncome.map((tx) => {
-              const text = (tx.description + ' ' + tx.depositorName).toLowerCase()
+              const text = (tx.description + ' ' + (tx.memo ?? '') + ' ' + tx.depositorName).toLowerCase()
               const isInterest = /이자/.test(text)
               return (
                 <li key={tx.id} className="py-3 flex items-center justify-between">
@@ -345,10 +355,11 @@ export default function ExpenseManager({ expenses, setExpenses, transactions }: 
                         {isInterest ? '이자' : '기타 입금'}
                       </span>
                     </div>
+                    <div className="text-xs text-gray-500 mt-0.5 space-y-0.5">
+                      {tx.description && <span className="block">내용: {tx.description}</span>}
+                      {tx.memo && <span className="block">메모: {tx.memo}</span>}
+                    </div>
                     <span className="text-xs text-gray-400">{tx.date}</span>
-                    {tx.description && (
-                      <span className="text-xs text-gray-500 block mt-0.5">내용: {tx.description}</span>
-                    )}
                   </div>
                   <span className="font-bold text-blue-600 text-sm">{formatKRW(tx.amount)}</span>
                 </li>

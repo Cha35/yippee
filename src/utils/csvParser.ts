@@ -5,7 +5,8 @@ const DATE_KEYS = ['거래일시', '거래일', '날짜', '일시']
 const TYPE_KEYS = ['거래구분', '구분', '입출금구분']
 const AMOUNT_KEYS = ['거래금액', '금액', '입출금액']
 const BALANCE_KEYS = ['잔액', '잔고']
-const DESC_KEYS = ['내용', '메모', '적요', '거래내용']
+const DESC_KEYS = ['내용', '적요', '거래내용']
+const MEMO_KEYS = ['메모', '비고']
 const DEPOSITOR_KEYS = ['보내는분', '입금자명', '입금자', '거래상대방', '상대방']
 
 function findKey(row: Record<string, string>, candidates: string[]): string {
@@ -68,6 +69,7 @@ export function parseKakaoBankCSV(file: File): Promise<ParseResult> {
         const amountKey = findKey(sample, AMOUNT_KEYS)
         const balanceKey = findKey(sample, BALANCE_KEYS)
         const descKey = findKey(sample, DESC_KEYS)
+        const memoKey = findKey(sample, MEMO_KEYS)
         const depositorKey = findKey(sample, DEPOSITOR_KEYS)
 
         if (!dateKey || !amountKey) {
@@ -83,6 +85,7 @@ export function parseKakaoBankCSV(file: File): Promise<ParseResult> {
           const rawType = typeKey ? row[typeKey] || '' : ''
           const rawBalance = balanceKey ? row[balanceKey] || '0' : '0'
           const desc = descKey ? row[descKey] || '' : ''
+          const memo = memoKey ? row[memoKey] || '' : ''
           const depositor = depositorKey ? row[depositorKey] || '' : ''
 
           const date = parseDate(rawDate)
@@ -102,6 +105,7 @@ export function parseKakaoBankCSV(file: File): Promise<ParseResult> {
             amount,
             balance,
             description: desc,
+            memo: memo || undefined,
             depositorName: depositor || desc,
             isManualEntry: false,
           })

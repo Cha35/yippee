@@ -28,6 +28,7 @@ export interface Transaction {
   amount: number
   balance: number
   description: string
+  memo?: string
   depositorName: string
   memberId?: string
   isManualEntry: boolean
