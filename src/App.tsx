@@ -7,6 +7,8 @@ import DuesTracker from './components/DuesTracker'
 import ExpenseManager from './components/ExpenseManager'
 import LeaguePlanner from './components/LeaguePlanner'
 import { LayoutDashboard, Users, CreditCard, Receipt, Target } from 'lucide-react'
+import { INITIAL_MEMBERS } from './data/initialMembers'
+import { INITIAL_TRANSACTIONS } from './data/initialTransactions'
 
 type Tab = 'dashboard' | 'members' | 'dues' | 'expenses' | 'league'
 
@@ -34,8 +36,8 @@ const DEFAULT_LEAGUE_PLAN: LeaguePlan = {
 
 export default function App() {
   const [tab, setTab] = useState<Tab>('dashboard')
-  const [members, setMembers] = useLocalStorage<Member[]>('tdm:members', [])
-  const [transactions, setTransactions] = useLocalStorage<Transaction[]>('tdm:transactions', [])
+  const [members, setMembers] = useLocalStorage<Member[]>('tdm:members', INITIAL_MEMBERS)
+  const [transactions, setTransactions] = useLocalStorage<Transaction[]>('tdm:transactions', INITIAL_TRANSACTIONS)
   const [expenses, setExpenses] = useLocalStorage<Expense[]>('tdm:expenses', [])
   const [leaguePlan, setLeaguePlan] = useLocalStorage<LeaguePlan>('tdm:leaguePlan', DEFAULT_LEAGUE_PLAN)
   const [settings, setSettings] = useLocalStorage<Settings>('tdm:settings', DEFAULT_SETTINGS)
