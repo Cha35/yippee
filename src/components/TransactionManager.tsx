@@ -39,8 +39,10 @@ export default function TransactionManager({
   const [classifyForm, setClassifyForm] = useState<{
     category: 'dues' | 'general' | 'interest'
     reason: string
-    includedInDues: boolean
+    memberId: string
+    applyMonth: string
   } | null>(null)
+  const [showClassified, setShowClassified] = useState(false)
 
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -77,32 +79,64 @@ export default function TransactionManager({
     (tx) => tx.type === '입금' && !tx.memberId && !tx.category
   )
 
+  // 분류 완료(미매칭에서 처리된) 입금 — 어디로 갔는지 추적용
+  const classifiedTxs = transactions
+    .filter((tx) => tx.type === '입금' && !!tx.category)
+    .sort((a, b) => (a.date > b.date ? -1 : 1))
+
   function startClassify(txId: string) {
     setClassifyingTx(txId)
     const tx = transactions.find((t) => t.id === txId)
     setClassifyForm({
-      category: tx?.category || 'general',
+      category: tx?.category || 'dues',
       reason: tx?.reason || '',
-      includedInDues: tx?.includedInDues ?? false,
+      memberId: tx?.memberId || '',
+      applyMonth: tx?.duesAllocations?.[0]?.yearMonth || (tx ? tx.date.slice(0, 7) : ''),
     })
   }
 
   function saveClassify() {
     if (!classifyingTx || !classifyForm) return
+    const tx = transactions.find((t) => t.id === classifyingTx)
+    if (!tx) return
+    const isDues = classifyForm.category === 'dues'
     setTransactions(
-      transactions.map((tx) =>
-        tx.id === classifyingTx
-          ? {
-              ...tx,
-              category: classifyForm.category,
-              reason: classifyForm.reason,
-              includedInDues: classifyForm.includedInDues,
-            }
-          : tx
-      )
+      transactions.map((t) => {
+        if (t.id !== classifyingTx) return t
+        if (isDues) {
+          // 회비: 팀원 연결 + (선택) 적용 월 배분 → 납입현황에 반영
+          return {
+            ...t,
+            category: 'dues',
+            reason: classifyForm.reason || undefined,
+            memberId: classifyForm.memberId || undefined,
+            duesAllocations: classifyForm.applyMonth
+              ? [{ yearMonth: classifyForm.applyMonth, amount: t.amount, reason: classifyForm.reason || undefined }]
+              : undefined,
+          }
+        }
+        // 일반입금/이자: 회비 아님 → 지출 탭 기타수입에 표시
+        return {
+          ...t,
+          category: classifyForm.category,
+          reason: classifyForm.reason || undefined,
+          memberId: undefined,
+          duesAllocations: undefined,
+        }
+      })
     )
     setClassifyingTx(null)
     setClassifyForm(null)
+  }
+
+  function unclassify(txId: string) {
+    setTransactions(
+      transactions.map((tx) =>
+        tx.id === txId
+          ? { ...tx, category: undefined, reason: undefined, duesAllocations: undefined, memberId: undefined }
+          : tx
+      )
+    )
   }
 
   function startEditTx(tx: Transaction) {
@@ -170,6 +204,107 @@ export default function TransactionManager({
   }
 
   const sortedTxs = [...transactions].sort((a, b) => (a.date > b.date ? -1 : 1))
+
+  function renderClassifyForm(tx: Transaction) {
+    if (!classifyForm) return null
+    return (
+      <div className="bg-blue-50 rounded-lg p-3 space-y-2 border border-blue-200">
+        <p className="text-xs text-gray-700 font-medium">
+          {tx.depositorName} · {formatKRW(tx.amount)} {tx.description && `(${tx.description})`}
+        </p>
+        <div>
+          <label className="text-xs text-gray-600 font-medium block mb-1">구분</label>
+          <div className="flex gap-3">
+            <label className="flex items-center gap-1 text-xs cursor-pointer">
+              <input
+                type="radio"
+                checked={classifyForm.category === 'dues'}
+                onChange={() => setClassifyForm({ ...classifyForm, category: 'dues' })}
+              />
+              <span>회비</span>
+            </label>
+            <label className="flex items-center gap-1 text-xs cursor-pointer">
+              <input
+                type="radio"
+                checked={classifyForm.category === 'general'}
+                onChange={() => setClassifyForm({ ...classifyForm, category: 'general' })}
+              />
+              <span>일반 입금</span>
+            </label>
+            <label className="flex items-center gap-1 text-xs cursor-pointer">
+              <input
+                type="radio"
+                checked={classifyForm.category === 'interest'}
+                onChange={() => setClassifyForm({ ...classifyForm, category: 'interest' })}
+              />
+              <span>이자</span>
+            </label>
+          </div>
+        </div>
+
+        {classifyForm.category === 'dues' ? (
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs text-gray-600 font-medium">팀원 *</label>
+              <select
+                className="border rounded px-2 py-1 text-xs w-full mt-0.5"
+                value={classifyForm.memberId}
+                onChange={(e) => setClassifyForm({ ...classifyForm, memberId: e.target.value })}
+              >
+                <option value="">선택</option>
+                {members.filter((m) => m.active).map((m) => (
+                  <option key={m.id} value={m.id}>{m.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-600 font-medium">적용 월</label>
+              <input
+                type="month"
+                className="border rounded px-2 py-1 text-xs w-full mt-0.5"
+                value={classifyForm.applyMonth}
+                onChange={(e) => setClassifyForm({ ...classifyForm, applyMonth: e.target.value })}
+              />
+            </div>
+            <p className="col-span-2 text-[11px] text-gray-400">
+              팀원·월을 지정하면 회비 납입현황에 반영됩니다. 여러 달 합산 입금은 납입현황에서 이관/분할로 나눌 수 있어요.
+            </p>
+          </div>
+        ) : (
+          <p className="text-[11px] text-gray-400">
+            회비가 아닌 입금은 지출 탭의 "기타 수입"에 표시됩니다.
+          </p>
+        )}
+
+        <div>
+          <label className="text-xs text-gray-600 font-medium">사유/메모</label>
+          <input
+            type="text"
+            className="border rounded px-2 py-1 text-xs w-full mt-0.5"
+            placeholder="예: 유니폼 구매, 5·6월 회비"
+            value={classifyForm.reason}
+            onChange={(e) => setClassifyForm({ ...classifyForm, reason: e.target.value })}
+          />
+        </div>
+
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={saveClassify}
+            disabled={classifyForm.category === 'dues' && !classifyForm.memberId}
+            className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:opacity-40"
+          >
+            저장
+          </button>
+          <button
+            onClick={() => { setClassifyingTx(null); setClassifyForm(null) }}
+            className="text-xs border px-2 py-1 rounded hover:bg-gray-50"
+          >
+            취소
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -398,69 +533,7 @@ export default function TransactionManager({
               return (
                 <div key={tx.id} className="py-3">
                   {isClassifying && classifyForm ? (
-                    <div className="bg-blue-50 rounded-lg p-3 space-y-2 border border-blue-200">
-                      <div>
-                        <label className="text-xs text-gray-600 font-medium">사유</label>
-                        <input
-                          type="text"
-                          className="border rounded px-2 py-1 text-xs w-full mt-1"
-                          placeholder="예: 유니폼 구매"
-                          value={classifyForm.reason}
-                          onChange={(e) => setClassifyForm({ ...classifyForm, reason: e.target.value })}
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-gray-600 font-medium block mb-1">구분</label>
-                        <div className="space-y-1">
-                          <label className="flex items-center gap-2 text-xs cursor-pointer">
-                            <input
-                              type="radio"
-                              checked={classifyForm.category === 'dues'}
-                              onChange={() => setClassifyForm({ ...classifyForm, category: 'dues' })}
-                            />
-                            <span>회비</span>
-                          </label>
-                          <label className="flex items-center gap-2 text-xs cursor-pointer">
-                            <input
-                              type="radio"
-                              checked={classifyForm.category === 'general'}
-                              onChange={() => setClassifyForm({ ...classifyForm, category: 'general' })}
-                            />
-                            <span>일반 입금</span>
-                          </label>
-                          <label className="flex items-center gap-2 text-xs cursor-pointer">
-                            <input
-                              type="radio"
-                              checked={classifyForm.category === 'interest'}
-                              onChange={() => setClassifyForm({ ...classifyForm, category: 'interest' })}
-                            />
-                            <span>이자</span>
-                          </label>
-                        </div>
-                      </div>
-                      <label className="flex items-center gap-2 text-xs cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={classifyForm.includedInDues}
-                          onChange={(e) => setClassifyForm({ ...classifyForm, includedInDues: e.target.checked })}
-                        />
-                        <span>회비에 포함</span>
-                      </label>
-                      <div className="flex gap-2 pt-1">
-                        <button
-                          onClick={saveClassify}
-                          className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700"
-                        >
-                          저장
-                        </button>
-                        <button
-                          onClick={() => { setClassifyingTx(null); setClassifyForm(null) }}
-                          className="text-xs border px-2 py-1 rounded hover:bg-gray-50"
-                        >
-                          취소
-                        </button>
-                      </div>
-                    </div>
+                    renderClassifyForm(tx)
                   ) : (
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1">
@@ -479,7 +552,6 @@ export default function TransactionManager({
                               tx.category === 'interest' ? '이자' : '일반 입금'
                             }</span>
                             {tx.reason && <span> ({tx.reason})</span>}
-                            {tx.includedInDues && <span className="ml-1 text-green-600">✓ 회비 포함</span>}
                           </div>
                         )}
                         {aiResult && !tx.category && (
@@ -504,6 +576,75 @@ export default function TransactionManager({
               )
             })}
           </div>
+        </div>
+      )}
+
+      {/* 분류 완료 입금 (어디로 갔는지 추적) */}
+      {classifiedTxs.length > 0 && (
+        <div className="bg-white rounded-xl shadow p-5">
+          <button
+            onClick={() => setShowClassified(!showClassified)}
+            className="flex items-center gap-2 text-sm font-medium text-gray-700"
+          >
+            분류 완료 입금 {classifiedTxs.length}건
+            {showClassified ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+          <p className="text-xs text-gray-400 mt-1">
+            미매칭에서 처리된 입금 — 회비는 납입현황, 일반/이자는 지출 탭에 반영됩니다.
+          </p>
+          {showClassified && (
+            <ul className="mt-3 divide-y divide-gray-100">
+              {classifiedTxs.map((tx) => {
+                const member = members.find((m) => m.id === tx.memberId)
+                const alloc = tx.duesAllocations?.[0]
+                if (classifyingTx === tx.id && classifyForm) {
+                  return <li key={tx.id} className="py-2">{renderClassifyForm(tx)}</li>
+                }
+                return (
+                  <li key={tx.id} className="py-2 flex items-start justify-between gap-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium text-sm">{tx.depositorName}</span>
+                        <span className="text-gray-400 text-xs">{tx.date}</span>
+                        <span className="text-blue-600 font-medium text-sm">{formatKRW(tx.amount)}</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${
+                          tx.category === 'dues' ? 'bg-green-100 text-green-700' :
+                          tx.category === 'interest' ? 'bg-emerald-100 text-emerald-700' :
+                          'bg-gray-100 text-gray-600'
+                        }`}>
+                          {tx.category === 'dues' ? '회비' : tx.category === 'interest' ? '이자' : '일반 입금'}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-500 mt-0.5">
+                        {tx.category === 'dues' && member && (
+                          <span>→ {member.name} 회비{alloc ? ` (${parseInt(alloc.yearMonth.split('-')[1])}월)` : ''}</span>
+                        )}
+                        {tx.category === 'dues' && !member && (
+                          <span className="text-red-500">⚠ 팀원 미연결 — 수정 필요</span>
+                        )}
+                        {tx.category !== 'dues' && <span>→ 지출 탭 기타수입</span>}
+                        {tx.reason && <span className="ml-1">· {tx.reason}</span>}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        onClick={() => startClassify(tx.id)}
+                        className="text-xs text-blue-600 border border-blue-200 px-2 py-0.5 rounded hover:bg-blue-50"
+                      >
+                        수정
+                      </button>
+                      <button
+                        onClick={() => unclassify(tx.id)}
+                        className="text-xs text-gray-500 border px-2 py-0.5 rounded hover:bg-gray-50"
+                      >
+                        분류 취소
+                      </button>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
         </div>
       )}
     </div>

@@ -152,7 +152,7 @@ export default function MemberManager({ members, setMembers, settings, setSettin
     if (!editForm) return
     setEditForm({
       ...editForm,
-      duesRules: [...editForm.duesRules, { fromMonth: '', monthlyDues: 15000, note: '' }],
+      duesRules: [...editForm.duesRules, { fromMonth: '', monthlyDues: 0, note: '' }],
     })
   }
 
@@ -513,19 +513,33 @@ export default function MemberManager({ members, setMembers, settings, setSettin
                                   />
                                 </div>
                                 <div className="col-span-2">
-                                  <label className="text-[11px] text-gray-500">월회비(0=면제)</label>
+                                  <label className="text-[11px] text-gray-500">월회비</label>
                                   <input
                                     type="number"
-                                    className="border rounded px-1.5 py-1 text-xs w-full mt-0.5"
+                                    disabled={rule.monthlyDues === 0}
+                                    className="border rounded px-1.5 py-1 text-xs w-full mt-0.5 disabled:bg-gray-100 disabled:text-gray-400"
                                     value={rule.monthlyDues}
                                     onChange={(e) => updateRule(idx, { monthlyDues: parseInt(e.target.value) || 0 })}
                                   />
                                 </div>
-                                <div className="col-span-3">
+                                <div className="col-span-2">
+                                  <label className="text-[11px] text-gray-500 block">면제</label>
+                                  <input
+                                    type="checkbox"
+                                    className="mt-1.5"
+                                    checked={rule.monthlyDues === 0}
+                                    onChange={(e) =>
+                                      updateRule(idx, {
+                                        monthlyDues: e.target.checked ? 0 : (settings.defaultMonthlyDues || 30000),
+                                      })
+                                    }
+                                  />
+                                </div>
+                                <div className="col-span-1">
                                   <label className="text-[11px] text-gray-500">사유</label>
                                   <input
                                     className="border rounded px-1.5 py-1 text-xs w-full mt-0.5"
-                                    placeholder="출석률/부상"
+                                    placeholder="부상"
                                     value={rule.note ?? ''}
                                     onChange={(e) => updateRule(idx, { note: e.target.value })}
                                   />
