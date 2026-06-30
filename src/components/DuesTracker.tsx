@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, ArrowRightLeft } from 'lucide-react'
+import { X, ArrowRightLeft, ChevronDown, ChevronUp } from 'lucide-react'
 import type { Member, Transaction, DuesStatus, Settings } from '../types'
 import {
   computeDuesStatuses,
@@ -32,6 +32,8 @@ export default function DuesTracker({
   const [allocTxId, setAllocTxId] = useState<string | null>(null)
   const [allocAmount, setAllocAmount] = useState('')
   const [allocReason, setAllocReason] = useState('')
+  // 회비 시작월 이전(다른 통장) 달 펼치기
+  const [showPreStart, setShowPreStart] = useState(false)
 
   const activeMembers = members.filter((m) => m.active)
 
@@ -49,12 +51,20 @@ export default function DuesTracker({
 
   const [selectedYear, setSelectedYear] = useState(thisYear)
 
+  const { leagueFeeStartMonth, monthlyLeagueFee, duesStartMonth } = settings
+
   // 선택 연도의 월 목록
   const yearStart = `${selectedYear}-01`
   const yearEnd = `${selectedYear}-12`
-  const months = getMonthsBetween(yearStart, yearEnd)
+  const allMonths = getMonthsBetween(yearStart, yearEnd)
 
-  const { leagueFeeStartMonth, monthlyLeagueFee, duesStartMonth } = settings
+  // 회비 시작월 이전 달은 기본 숨김 (다른 통장에서 납입 완료)
+  const preStartMonths = duesStartMonth
+    ? allMonths.filter((m) => m < duesStartMonth)
+    : []
+  const months = showPreStart
+    ? allMonths
+    : allMonths.filter((m) => !preStartMonths.includes(m))
   const isLeagueFeeMonth = (ym: string) =>
     !!(leagueFeeStartMonth && monthlyLeagueFee && monthlyLeagueFee > 0 && leagueFeeStartMonth <= ym)
 
@@ -190,6 +200,20 @@ export default function DuesTracker({
                     ))}
                   </select>
                 </div>
+
+                {/* 회비 시작월 이전 달 펼치기 */}
+                {preStartMonths.length > 0 && (
+                  <button
+                    onClick={() => { setShowPreStart(!showPreStart); setSelectedCell(null) }}
+                    className="text-xs text-gray-500 hover:text-gray-700 border rounded-lg px-2 py-1.5 flex items-center gap-1"
+                  >
+                    {showPreStart ? (
+                      <>{preStartMonths.map((m) => parseInt(m.split('-')[1])).join('·')}월 숨기기 <ChevronUp size={12} /></>
+                    ) : (
+                      <>{preStartMonths.map((m) => parseInt(m.split('-')[1])).join('·')}월 보기 <ChevronDown size={12} /></>
+                    )}
+                  </button>
+                )}
                 <div className="flex items-center gap-3 text-xs text-gray-500 flex-wrap">
                   <span className="flex items-center gap-1">
                     <span className="w-3 h-3 rounded-sm bg-green-200 inline-block" /> 납입
