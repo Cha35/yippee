@@ -20,6 +20,17 @@ export function formatNumber(amount: number): string {
   return new Intl.NumberFormat('ko-KR').format(amount)
 }
 
+// 거래구분 같은 일반값 (실제 내용이 아님)
+const GENERIC_DESC = ['일반이체', '일반입금', '간편이체', '예금이자', '체크카드', '펌뱅킹', '']
+
+// 거래의 의미 있는 내용 텍스트 추출
+// description이 거래구분(일반이체 등)이면 depositorName(실제 내용)을 사용
+export function txContent(tx: Transaction): string {
+  const d = (tx.description || '').trim()
+  if (d && !GENERIC_DESC.includes(d)) return d
+  return (tx.depositorName || d || '').trim()
+}
+
 export function formatYearMonth(ym: string): string {
   const [year, month] = ym.split('-')
   return `${year}년 ${parseInt(month)}월`

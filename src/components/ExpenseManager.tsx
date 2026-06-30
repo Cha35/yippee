@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { Plus, Trash2, Image } from 'lucide-react'
 import type { Expense, ExpenseCategory, Transaction } from '../types'
-import { formatKRW } from '../utils/calculations'
+import { formatKRW, txContent } from '../utils/calculations'
 
 interface Props {
   expenses: Expense[]
@@ -309,14 +309,13 @@ export default function ExpenseManager({ expenses, setExpenses, transactions }: 
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium text-gray-800 text-sm">
-                        {tx.description || tx.depositorName || '(내용 없음)'}
+                        {txContent(tx) || '(내용 없음)'}
                       </span>
                       <span className={`text-xs px-2 py-0.5 rounded-full ${CATEGORY_COLORS[cat]}`}>
                         {cat}
                       </span>
                     </div>
                     <div className="text-xs text-gray-500 mt-0.5 space-y-0.5">
-                      {tx.description && <span className="block">내용: {tx.description}</span>}
                       {tx.memo && <span className="block">메모: {tx.memo}</span>}
                     </div>
                     <span className="text-xs text-gray-400">{tx.date}</span>
