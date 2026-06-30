@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Member, Transaction, Expense, LeaguePlan, Settings } from './types'
 import { useLocalStorage } from './hooks/useLocalStorage'
 import Dashboard from './components/Dashboard'
@@ -38,6 +38,16 @@ export default function App() {
   const [tab, setTab] = useState<Tab>('dashboard')
   const [members, setMembers] = useLocalStorage<Member[]>('tdm:members', INITIAL_MEMBERS)
   const [transactions, setTransactions] = useLocalStorage<Transaction[]>('tdm:transactions', INITIAL_TRANSACTIONS)
+
+  // 시드 버전 체크: v1이 없으면 강제로 초기 데이터 덮어쓰기
+  useEffect(() => {
+    if (!localStorage.getItem('tdm:seed-v1')) {
+      setMembers(INITIAL_MEMBERS)
+      setTransactions(INITIAL_TRANSACTIONS)
+      localStorage.setItem('tdm:seed-v1', '1')
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [expenses, setExpenses] = useLocalStorage<Expense[]>('tdm:expenses', [])
   const [leaguePlan, setLeaguePlan] = useLocalStorage<LeaguePlan>('tdm:leaguePlan', DEFAULT_LEAGUE_PLAN)
   const [settings, setSettings] = useLocalStorage<Settings>('tdm:settings', DEFAULT_SETTINGS)
