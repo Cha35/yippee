@@ -7,6 +7,7 @@ import {
   matchTransactionToMember,
 } from '../utils/calculations'
 import { matchTransactionsWithAI } from '../utils/claudeApi'
+import { useAdmin } from '../auth'
 
 interface Props {
   members: Member[]
@@ -19,6 +20,7 @@ export default function TransactionManager({
   transactions,
   setTransactions,
 }: Props) {
+  const { isAdmin } = useAdmin()
   const fileRef = useRef<HTMLInputElement>(null)
   const [parseErrors, setParseErrors] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
@@ -312,21 +314,23 @@ export default function TransactionManager({
       <div className="bg-white rounded-xl shadow p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-semibold text-gray-700">거래내역 업로드</h2>
-          <label className="flex items-center gap-2 text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 cursor-pointer">
-            {uploading ? (
-              <RefreshCw size={15} className="animate-spin" />
-            ) : (
-              <Upload size={15} />
-            )}
-            CSV 업로드
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".csv"
-              className="hidden"
-              onChange={handleFileUpload}
-            />
-          </label>
+          {isAdmin && (
+            <label className="flex items-center gap-2 text-sm bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 cursor-pointer">
+              {uploading ? (
+                <RefreshCw size={15} className="animate-spin" />
+              ) : (
+                <Upload size={15} />
+              )}
+              CSV 업로드
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={handleFileUpload}
+              />
+            </label>
+          )}
         </div>
         <p className="text-xs text-gray-500">
           카카오뱅크 앱 → 모임통장 → 거래내역 → 내보내기(CSV)로 다운받은 파일을 업로드하세요.
@@ -443,20 +447,22 @@ export default function TransactionManager({
                           <span className="text-xs text-gray-500 block mt-0.5">내용: {tx.description}</span>
                         )}
                       </div>
-                      <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          onClick={() => startEditTx(tx)}
-                          className="p-1 text-gray-400 hover:text-blue-600 rounded"
-                        >
-                          <Edit2 size={13} />
-                        </button>
-                        <button
-                          onClick={() => deleteTx(tx.id)}
-                          className="p-1 text-gray-400 hover:text-red-500 rounded"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
+                      {isAdmin && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            onClick={() => startEditTx(tx)}
+                            className="p-1 text-gray-400 hover:text-blue-600 rounded"
+                          >
+                            <Edit2 size={13} />
+                          </button>
+                          <button
+                            onClick={() => deleteTx(tx.id)}
+                            className="p-1 text-gray-400 hover:text-red-500 rounded"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </li>
@@ -466,8 +472,8 @@ export default function TransactionManager({
         )}
       </div>
 
-      {/* 미매칭 입금 */}
-      {unmatchedTxs.length > 0 && (
+      {/* 미매칭 입금 (관리자 전용) */}
+      {isAdmin && unmatchedTxs.length > 0 && (
         <div className="bg-white rounded-xl shadow p-5">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <button
@@ -626,20 +632,22 @@ export default function TransactionManager({
                         {tx.reason && <span className="ml-1">· {tx.reason}</span>}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        onClick={() => startClassify(tx.id)}
-                        className="text-xs text-blue-600 border border-blue-200 px-2 py-0.5 rounded hover:bg-blue-50"
-                      >
-                        수정
-                      </button>
-                      <button
-                        onClick={() => unclassify(tx.id)}
-                        className="text-xs text-gray-500 border px-2 py-0.5 rounded hover:bg-gray-50"
-                      >
-                        분류 취소
-                      </button>
-                    </div>
+                    {isAdmin && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          onClick={() => startClassify(tx.id)}
+                          className="text-xs text-blue-600 border border-blue-200 px-2 py-0.5 rounded hover:bg-blue-50"
+                        >
+                          수정
+                        </button>
+                        <button
+                          onClick={() => unclassify(tx.id)}
+                          className="text-xs text-gray-500 border px-2 py-0.5 rounded hover:bg-gray-50"
+                        >
+                          분류 취소
+                        </button>
+                      </div>
+                    )}
                   </li>
                 )
               })}

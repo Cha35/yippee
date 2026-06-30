@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Trash2, Edit2, Check, X, UserPlus, Plus } from 'lucide-react'
 import type { Member, Settings, PaymentType, MemberDuesRule } from '../types'
 import { formatKRW, getAnnualDues } from '../utils/calculations'
+import { useAdmin } from '../auth'
 
 interface Props {
   members: Member[]
@@ -31,6 +32,7 @@ interface EditState {
 }
 
 export default function MemberManager({ members, setMembers, settings, setSettings }: Props) {
+  const { isAdmin } = useAdmin()
   const [adding, setAdding] = useState(false)
   const [editId, setEditId] = useState<string | null>(null)
   const [form, setForm] = useState<Omit<EditState, 'id'>>({
@@ -175,6 +177,7 @@ export default function MemberManager({ members, setMembers, settings, setSettin
 
   return (
     <div className="space-y-6">
+      {isAdmin && (
       <div className="bg-white rounded-xl shadow p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-semibold text-gray-700">기본 설정</h2>
@@ -269,17 +272,21 @@ export default function MemberManager({ members, setMembers, settings, setSettin
         </div>
       </div>
 
+      )}
+
       <div className="bg-white rounded-xl shadow p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-base font-semibold text-gray-700">
             팀원 목록 <span className="text-xs text-gray-400 font-normal">({active.length}명 활동중)</span>
           </h2>
-          <button
-            onClick={startAdd}
-            className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700"
-          >
-            <UserPlus size={15} /> 팀원 추가
-          </button>
+          {isAdmin && (
+            <button
+              onClick={startAdd}
+              className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700"
+            >
+              <UserPlus size={15} /> 팀원 추가
+            </button>
+          )}
         </div>
 
         {adding && (
@@ -619,26 +626,28 @@ export default function MemberManager({ members, setMembers, settings, setSettin
                     )}
                     <p className="text-xs text-gray-400">가입: {m.joinDate}</p>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => startEdit(m)}
-                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
-                    >
-                      <Edit2 size={15} />
-                    </button>
-                    <button
-                      onClick={() => toggleActive(m.id)}
-                      className="p-1.5 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded text-xs"
-                    >
-                      비활성
-                    </button>
-                    <button
-                      onClick={() => removeMember(m.id)}
-                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                    >
-                      <Trash2 size={15} />
-                    </button>
-                  </div>
+                  {isAdmin && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => startEdit(m)}
+                        className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                      >
+                        <Edit2 size={15} />
+                      </button>
+                      <button
+                        onClick={() => toggleActive(m.id)}
+                        className="p-1.5 text-gray-400 hover:text-yellow-600 hover:bg-yellow-50 rounded text-xs"
+                      >
+                        비활성
+                      </button>
+                      <button
+                        onClick={() => removeMember(m.id)}
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -650,7 +659,7 @@ export default function MemberManager({ members, setMembers, settings, setSettin
           )}
         </div>
 
-        {inactive.length > 0 && (
+        {isAdmin && inactive.length > 0 && (
           <div className="mt-4">
             <p className="text-xs text-gray-500 font-medium mb-2">비활성 팀원</p>
             <div className="flex flex-wrap gap-2">

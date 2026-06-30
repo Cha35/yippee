@@ -5,6 +5,7 @@ import {
   computeCurrentBalance,
 } from '../utils/calculations'
 import { Target, TrendingUp, Calendar, Users, DollarSign } from 'lucide-react'
+import { useAdmin } from '../auth'
 
 interface Props {
   leaguePlan: LeaguePlan
@@ -44,6 +45,7 @@ function InfoCard({
 }
 
 export default function LeaguePlanner({ leaguePlan, setLeaguePlan, transactions }: Props) {
+  const { isAdmin } = useAdmin()
   const autoBalance = computeCurrentBalance(transactions)
   const currentBalance = leaguePlan.useCurrentBalance ? leaguePlan.manualBalance : autoBalance
 
@@ -67,6 +69,7 @@ export default function LeaguePlanner({ leaguePlan, setLeaguePlan, transactions 
 
   return (
     <div className="space-y-6">
+      {isAdmin && (
       <div className="bg-white rounded-xl shadow p-5">
         <h2 className="text-base font-semibold text-gray-700 mb-4">다음 리그 계획 설정</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -150,6 +153,7 @@ export default function LeaguePlanner({ leaguePlan, setLeaguePlan, transactions 
           </div>
         </div>
       </div>
+      )}
 
       {calc ? (
         <div className="space-y-4">

@@ -2,6 +2,7 @@ import { useState, useRef } from 'react'
 import { Plus, Trash2, Image } from 'lucide-react'
 import type { Expense, ExpenseCategory, Transaction } from '../types'
 import { formatKRW, txContent } from '../utils/calculations'
+import { useAdmin } from '../auth'
 
 interface Props {
   expenses: Expense[]
@@ -31,6 +32,7 @@ function generateId() {
 }
 
 export default function ExpenseManager({ expenses, setExpenses, transactions }: Props) {
+  const { isAdmin } = useAdmin()
   const [adding, setAdding] = useState(false)
   const [filterCategory, setFilterCategory] = useState<ExpenseCategory | 'all'>('all')
   const [previewReceipt, setPreviewReceipt] = useState<string | null>(null)
@@ -152,12 +154,14 @@ export default function ExpenseManager({ expenses, setExpenses, transactions }: 
                 </option>
               ))}
             </select>
-            <button
-              onClick={() => setAdding(true)}
-              className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700"
-            >
-              <Plus size={15} /> 지출 추가
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setAdding(true)}
+                className="flex items-center gap-1 text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700"
+              >
+                <Plus size={15} /> 지출 추가
+              </button>
+            )}
           </div>
         </div>
 
@@ -279,12 +283,14 @@ export default function ExpenseManager({ expenses, setExpenses, transactions }: 
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="font-bold text-red-500 text-sm">{formatKRW(exp.amount)}</span>
-                  <button
-                    onClick={() => removeExpense(exp.id)}
-                    className="p-1.5 text-gray-300 hover:text-red-500 rounded"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => removeExpense(exp.id)}
+                      className="p-1.5 text-gray-300 hover:text-red-500 rounded"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
               </li>
             ))}

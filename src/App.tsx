@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import type { Member, Transaction, Expense, LeaguePlan, Settings } from './types'
+import type { Member, Transaction, Expense, LeaguePlan, Settings, CellComment } from './types'
 import { useLocalStorage } from './hooks/useLocalStorage'
 import Dashboard from './components/Dashboard'
 import MemberManager from './components/MemberManager'
@@ -7,9 +7,75 @@ import TransactionManager from './components/TransactionManager'
 import DuesTracker from './components/DuesTracker'
 import ExpenseManager from './components/ExpenseManager'
 import LeaguePlanner from './components/LeaguePlanner'
-import { LayoutDashboard, Users, CreditCard, Receipt, Target } from 'lucide-react'
+import { LayoutDashboard, Users, CreditCard, Receipt, Target, Lock, Unlock } from 'lucide-react'
 import { INITIAL_MEMBERS } from './data/initialMembers'
 import { INITIAL_TRANSACTIONS } from './data/initialTransactions'
+import { useAdmin } from './auth'
+
+function AdminControl() {
+  const { isAdmin, unlock, lock } = useAdmin()
+  const [open, setOpen] = useState(false)
+  const [pin, setPin] = useState('')
+  const [error, setError] = useState(false)
+
+  if (isAdmin) {
+    return (
+      <button
+        onClick={lock}
+        className="flex items-center gap-1 text-xs text-green-600 border border-green-200 bg-green-50 rounded-lg px-2.5 py-1.5 hover:bg-green-100"
+        title="관리자 모드 — 잠그기"
+      >
+        <Unlock size={13} /> 관리자
+      </button>
+    )
+  }
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => { setOpen(!open); setError(false) }}
+        className="flex items-center gap-1 text-xs text-gray-500 border border-gray-200 rounded-lg px-2.5 py-1.5 hover:bg-gray-50"
+        title="관리자 PIN 입력"
+      >
+        <Lock size={13} /> 열람 모드
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg p-3 w-56">
+          <p className="text-xs text-gray-500 mb-2">관리자 PIN을 입력하세요</p>
+          <input
+            type="password"
+            autoFocus
+            className={`border rounded px-2 py-1.5 text-sm w-full ${error ? 'border-red-400' : ''}`}
+            placeholder="PIN"
+            value={pin}
+            onChange={(e) => { setPin(e.target.value); setError(false) }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                if (unlock(pin)) { setOpen(false); setPin('') }
+                else setError(true)
+              }
+            }}
+          />
+          {error && <p className="text-xs text-red-500 mt-1">PIN이 올바르지 않습니다</p>}
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={() => { if (unlock(pin)) { setOpen(false); setPin('') } else setError(true) }}
+              className="text-xs bg-blue-600 text-white px-3 py-1.5 rounded hover:bg-blue-700 flex-1"
+            >
+              해제
+            </button>
+            <button
+              onClick={() => { setOpen(false); setPin(''); setError(false) }}
+              className="text-xs border px-3 py-1.5 rounded hover:bg-gray-50"
+            >
+              취소
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 type Tab = 'dashboard' | 'members' | 'transactions' | 'dues' | 'expenses' | 'league'
 
@@ -66,6 +132,7 @@ export default function App() {
     'tdm:overrides',
     {}
   )
+  const [comments, setComments] = useLocalStorage<CellComment[]>('tdm:comments', [])
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -75,6 +142,7 @@ export default function App() {
             <h1 className="text-base font-bold text-gray-800">{settings.teamName}</h1>
             <p className="text-xs text-gray-400">회비 관리</p>
           </div>
+          <AdminControl />
         </div>
         <nav className="max-w-5xl mx-auto px-4 overflow-x-auto">
           <div className="flex gap-1 pb-0">
@@ -130,6 +198,8 @@ export default function App() {
             manualOverrides={manualOverrides}
             setManualOverrides={setManualOverrides}
             settings={settings}
+            comments={comments}
+            setComments={setComments}
           />
         )}
         {tab === 'expenses' && (

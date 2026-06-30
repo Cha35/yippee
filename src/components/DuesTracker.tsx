@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { X, ArrowRightLeft, ChevronDown, ChevronUp } from 'lucide-react'
-import type { Member, Transaction, DuesStatus, Settings } from '../types'
+import { X, ArrowRightLeft, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react'
+import type { Member, Transaction, DuesStatus, Settings, CellComment } from '../types'
 import {
   computeDuesStatuses,
   duesContribution,
@@ -9,6 +9,7 @@ import {
   getMonthsBetween,
   getYearMonth,
 } from '../utils/calculations'
+import { useAdmin } from '../auth'
 
 interface Props {
   members: Member[]
@@ -17,6 +18,8 @@ interface Props {
   manualOverrides: Record<string, 'paid' | 'unpaid'>
   setManualOverrides: (o: Record<string, 'paid' | 'unpaid'>) => void
   settings: Settings
+  comments: CellComment[]
+  setComments: (c: CellComment[]) => void
 }
 
 export default function DuesTracker({
@@ -26,7 +29,10 @@ export default function DuesTracker({
   manualOverrides,
   setManualOverrides,
   settings,
+  comments,
+  setComments,
 }: Props) {
+  const { isAdmin } = useAdmin()
   const [selectedCell, setSelectedCell] = useState<{ memberId: string; ym: string } | null>(null)
   // 이관 폼: 어떤 거래를 이 달로 이관할지
   const [allocTxId, setAllocTxId] = useState<string | null>(null)
@@ -34,6 +40,9 @@ export default function DuesTracker({
   const [allocReason, setAllocReason] = useState('')
   // 회비 시작월 이전(다른 통장) 달 펼치기
   const [showPreStart, setShowPreStart] = useState(false)
+  // 댓글 입력 폼
+  const [commentName, setCommentName] = useState(() => localStorage.getItem('tdm:commentName') || '')
+  const [commentText, setCommentText] = useState('')
 
   const activeMembers = members.filter((m) => m.active)
 
@@ -156,6 +165,30 @@ export default function DuesTracker({
     setAllocTxId(null)
     setAllocAmount('')
     setAllocReason('')
+  }
+
+  // 셀 댓글
+  const cellKey = selectedCell ? `${selectedCell.memberId}:${selectedCell.ym}` : ''
+  const cellComments = comments
+    .filter((c) => c.cellKey === cellKey)
+    .sort((a, b) => (a.createdAt > b.createdAt ? 1 : -1))
+
+  function addComment() {
+    if (!selectedCell || !commentName.trim() || !commentText.trim()) return
+    const c: CellComment = {
+      id: `cmt-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      cellKey,
+      name: commentName.trim(),
+      text: commentText.trim(),
+      createdAt: new Date().toISOString(),
+    }
+    localStorage.setItem('tdm:commentName', commentName.trim())
+    setComments([...comments, c])
+    setCommentText('')
+  }
+
+  function removeComment(id: string) {
+    setComments(comments.filter((c) => c.id !== id))
   }
 
   // 이 달에 대한 배분 취소 (거래의 해당 월 배분 제거)
@@ -487,8 +520,8 @@ export default function DuesTracker({
                     </div>
                   )}
 
-                  {/* 다른 입금 이관/분할 (월납만) */}
-                  {!isAnnualMember(selectedCell.memberId) && allocatableTxs.length > 0 && (
+                  {/* 다른 입금 이관/분할 (월납·관리자만) */}
+                  {isAdmin && !isAnnualMember(selectedCell.memberId) && allocatableTxs.length > 0 && (
                     <div className="border-t border-gray-100 pt-2">
                       <p className="text-xs text-gray-500 mb-2 font-medium flex items-center gap-1">
                         <ArrowRightLeft size={12} /> 다른 입금을 이 달 회비로 이관/분할
@@ -562,6 +595,7 @@ export default function DuesTracker({
                     </div>
                   )}
 
+                  {isAdmin && (
                   <div className="border-t border-gray-100 pt-2">
                     <p className="text-xs text-gray-500 mb-2 font-medium">수동 변경</p>
                     <div className="flex items-center gap-1 flex-wrap">
@@ -627,6 +661,60 @@ export default function DuesTracker({
                           자동
                         </button>
                       )}
+                    </div>
+                  </div>
+                  )}
+
+                  {/* 댓글 (열람자도 작성 가능) */}
+                  <div className="border-t border-gray-100 pt-2">
+                    <p className="text-xs text-gray-500 mb-2 font-medium flex items-center gap-1">
+                      <MessageSquare size={12} /> 댓글 {cellComments.length > 0 && `(${cellComments.length})`}
+                    </p>
+                    {cellComments.length > 0 && (
+                      <ul className="space-y-1.5 mb-2">
+                        {cellComments.map((c) => (
+                          <li key={c.id} className="bg-gray-50 rounded p-2 text-xs">
+                            <div className="flex items-center justify-between">
+                              <span className="font-medium text-gray-700">{c.name}</span>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] text-gray-400">{c.createdAt.slice(0, 10)}</span>
+                                {isAdmin && (
+                                  <button
+                                    onClick={() => removeComment(c.id)}
+                                    className="text-gray-300 hover:text-red-500"
+                                  >
+                                    <X size={11} />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            <p className="text-gray-600 mt-0.5 whitespace-pre-wrap">{c.text}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <div className="space-y-1.5">
+                      <input
+                        type="text"
+                        className="border rounded px-2 py-1 text-xs w-full"
+                        placeholder="이름"
+                        value={commentName}
+                        onChange={(e) => setCommentName(e.target.value)}
+                      />
+                      <textarea
+                        className="border rounded px-2 py-1 text-xs w-full resize-none"
+                        rows={2}
+                        placeholder="내용을 입력하세요"
+                        value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                      />
+                      <button
+                        onClick={addComment}
+                        disabled={!commentName.trim() || !commentText.trim()}
+                        className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 disabled:opacity-40"
+                      >
+                        댓글 남기기
+                      </button>
                     </div>
                   </div>
                 </>

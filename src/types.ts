@@ -57,6 +57,16 @@ export interface Expense {
   receipt?: string
 }
 
+// 회비 셀 댓글 (열람자도 작성 가능)
+// TODO: Supabase 연동 시 comments 테이블로 이전 (cellKey, name, text, createdAt)
+export interface CellComment {
+  id: string
+  cellKey: string // `${memberId}:${yearMonth}`
+  name: string
+  text: string
+  createdAt: string // ISO
+}
+
 export interface LeaguePlan {
   leagueFee: number
   reserveFund: number
