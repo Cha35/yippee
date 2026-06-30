@@ -1,10 +1,9 @@
 import { Users, TrendingUp, TrendingDown, AlertCircle } from 'lucide-react'
-import type { Member, Transaction, Expense, LeaguePlan, DuesStatus } from '../types'
+import type { Member, Transaction, Expense, LeaguePlan, DuesStatus, Settings } from '../types'
 import {
   formatKRW,
   computeCurrentBalance,
   computeLeaguePlan,
-  getCollectionRate,
   getTotalExpenses,
   computeDuesStatuses,
 } from '../utils/calculations'
@@ -15,6 +14,7 @@ interface Props {
   expenses: Expense[]
   leaguePlan: LeaguePlan
   manualOverrides: Record<string, 'paid' | 'unpaid'>
+  settings: Settings
 }
 
 function StatCard({
@@ -50,6 +50,7 @@ export default function Dashboard({
   expenses,
   leaguePlan,
   manualOverrides,
+  settings,
 }: Props) {
   const currentBalance = leaguePlan.useCurrentBalance
     ? leaguePlan.manualBalance
@@ -64,10 +65,28 @@ export default function Dashboard({
     activeMembers,
     transactions,
     [thisMonth],
-    manualOverrides
+    manualOverrides,
+    settings.leagueFeeStartMonth,
+    settings.monthlyLeagueFee,
+    settings.duesStartMonth
   )
 
-  const collectionRate = getCollectionRate(thisMonthStatuses)
+  // 월납자 / 일시납자 분리
+  const monthlyMembers = activeMembers.filter((m) => m.paymentType === 'monthly')
+  const annualMembers = activeMembers.filter((m) => m.paymentType === 'annual')
+  const monthlyStatuses = thisMonthStatuses.filter((s) =>
+    monthlyMembers.some((m) => m.id === s.memberId)
+  )
+  const annualStatuses = thisMonthStatuses.filter((s) =>
+    annualMembers.some((m) => m.id === s.memberId)
+  )
+
+  // 납입률: 월납자 기준으로만 계산
+  const monthlyPaidCount = monthlyStatuses.filter((s) => s.status === 'paid').length
+  const collectionRate =
+    monthlyStatuses.length > 0
+      ? Math.round((monthlyPaidCount / monthlyStatuses.length) * 100)
+      : 100
   const totalExpenses = getTotalExpenses(expenses)
 
   const leagueCalc =
@@ -101,9 +120,9 @@ export default function Dashboard({
         />
         <StatCard
           icon={<Users size={22} />}
-          label="이번 달 납입률"
+          label="이번 달 납입률 (월납)"
           value={`${collectionRate}%`}
-          sub={`${thisMonthStatuses.filter((s) => s.status === 'paid').length} / ${activeMembers.length}명 납입`}
+          sub={`${monthlyPaidCount} / ${monthlyStatuses.length}명 납입`}
           color={collectionRate === 100 ? 'border-green-500' : 'border-yellow-400'}
         />
         <StatCard
@@ -181,30 +200,65 @@ export default function Dashboard({
       </div>
 
       {thisMonthStatuses.length > 0 && (
-        <div className="bg-white rounded-xl shadow p-5">
-          <h3 className="text-sm font-semibold text-gray-600 mb-3">
+        <div className="bg-white rounded-xl shadow p-5 space-y-4">
+          <h3 className="text-sm font-semibold text-gray-600">
             이번 달 ({thisMonth}) 납입 현황
           </h3>
-          <div className="flex flex-wrap gap-2">
-            {thisMonthStatuses.map((s) => {
-              const member = activeMembers.find((m) => m.id === s.memberId)
-              if (!member) return null
-              return (
-                <span
-                  key={s.memberId}
-                  className={`text-xs px-3 py-1 rounded-full font-medium ${
-                    s.status === 'paid'
-                      ? 'bg-green-100 text-green-700'
-                      : s.status === 'partial'
-                      ? 'bg-yellow-100 text-yellow-700'
-                      : 'bg-red-100 text-red-600'
-                  }`}
-                >
-                  {member.name} {s.status === 'paid' ? '✓' : s.status === 'partial' ? '△' : '✗'}
-                </span>
-              )
-            })}
-          </div>
+
+          {/* 월납자 */}
+          {monthlyStatuses.length > 0 && (
+            <div>
+              <p className="text-xs text-gray-400 mb-2 font-medium">
+                월납 ({monthlyPaidCount}/{monthlyStatuses.length}명 납입)
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {monthlyStatuses.map((s) => {
+                  const member = activeMembers.find((m) => m.id === s.memberId)
+                  if (!member) return null
+                  return (
+                    <span
+                      key={s.memberId}
+                      className={`text-xs px-3 py-1 rounded-full font-medium ${
+                        s.status === 'paid'
+                          ? 'bg-green-100 text-green-700'
+                          : s.status === 'partial'
+                          ? 'bg-yellow-100 text-yellow-700'
+                          : 'bg-red-100 text-red-600'
+                      }`}
+                    >
+                      {member.name} {s.status === 'paid' ? '✓' : s.status === 'partial' ? '△' : '✗'}
+                    </span>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 일시납자 */}
+          {annualStatuses.length > 0 && (
+            <div>
+              <p className="text-xs text-gray-400 mb-2 font-medium">
+                일시납 (연회비 완납자 — 월별 미납 없음)
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {annualStatuses.map((s) => {
+                  const member = activeMembers.find((m) => m.id === s.memberId)
+                  if (!member) return null
+                  const isPaid = s.status === 'annual_paid'
+                  return (
+                    <span
+                      key={s.memberId}
+                      className={`text-xs px-3 py-1 rounded-full font-medium ${
+                        isPaid ? 'bg-purple-100 text-purple-700' : 'bg-red-100 text-red-600'
+                      }`}
+                    >
+                      {member.name} {isPaid ? '일시납✓' : '미납'}
+                    </span>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

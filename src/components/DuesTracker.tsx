@@ -1,16 +1,19 @@
 import { useState } from 'react'
-import { X } from 'lucide-react'
+import { X, ArrowRightLeft } from 'lucide-react'
 import type { Member, Transaction, DuesStatus, Settings } from '../types'
 import {
   computeDuesStatuses,
+  duesContribution,
   formatKRW,
   formatYearMonth,
   getMonthsBetween,
+  getYearMonth,
 } from '../utils/calculations'
 
 interface Props {
   members: Member[]
   transactions: Transaction[]
+  setTransactions: (t: Transaction[]) => void
   manualOverrides: Record<string, 'paid' | 'unpaid'>
   setManualOverrides: (o: Record<string, 'paid' | 'unpaid'>) => void
   settings: Settings
@@ -19,11 +22,16 @@ interface Props {
 export default function DuesTracker({
   members,
   transactions,
+  setTransactions,
   manualOverrides,
   setManualOverrides,
   settings,
 }: Props) {
   const [selectedCell, setSelectedCell] = useState<{ memberId: string; ym: string } | null>(null)
+  // 이관 폼: 어떤 거래를 이 달로 이관할지
+  const [allocTxId, setAllocTxId] = useState<string | null>(null)
+  const [allocAmount, setAllocAmount] = useState('')
+  const [allocReason, setAllocReason] = useState('')
 
   const activeMembers = members.filter((m) => m.active)
 
@@ -46,7 +54,7 @@ export default function DuesTracker({
   const yearEnd = `${selectedYear}-12`
   const months = getMonthsBetween(yearStart, yearEnd)
 
-  const { leagueFeeStartMonth, monthlyLeagueFee } = settings
+  const { leagueFeeStartMonth, monthlyLeagueFee, duesStartMonth } = settings
   const isLeagueFeeMonth = (ym: string) =>
     !!(leagueFeeStartMonth && monthlyLeagueFee && monthlyLeagueFee > 0 && leagueFeeStartMonth <= ym)
 
@@ -56,7 +64,8 @@ export default function DuesTracker({
     months,
     manualOverrides,
     leagueFeeStartMonth,
-    monthlyLeagueFee
+    monthlyLeagueFee,
+    duesStartMonth
   )
 
   function getStatus(memberId: string, ym: string): DuesStatus | undefined {
@@ -94,6 +103,62 @@ export default function DuesTracker({
 
   // 연도별 오버라이드 키 (일시납용)
   const annualOverrideKey = (memberId: string) => `${memberId}:${selectedYear}`
+
+  // 이관 가능한 거래: 선택 멤버의 입금 거래 중, 현재 월에 기여하지 않는 것
+  const allocatableTxs = selectedCell
+    ? transactions
+        .filter(
+          (tx) =>
+            tx.type === '입금' &&
+            tx.memberId === selectedCell.memberId &&
+            tx.date.startsWith(selectedYear) &&
+            duesContribution(tx, selectedCell.ym) === 0
+        )
+        .sort((a, b) => (a.date > b.date ? -1 : 1))
+    : []
+
+  function startAlloc(tx: Transaction) {
+    setAllocTxId(tx.id)
+    setAllocAmount(String(tx.amount))
+    setAllocReason('')
+  }
+
+  // 거래를 현재 선택 월의 회비로 이관/배분
+  function applyAlloc() {
+    if (!allocTxId || !selectedCell) return
+    const amount = parseInt(allocAmount.replace(/[^0-9]/g, '')) || 0
+    if (amount <= 0) return
+    const ym = selectedCell.ym
+    setTransactions(
+      transactions.map((tx) => {
+        if (tx.id !== allocTxId) return tx
+        // 기존 배분이 없으면, 원래 거래일 월에 대한 배분을 먼저 보존
+        const base: Transaction['duesAllocations'] =
+          tx.duesAllocations && tx.duesAllocations.length > 0
+            ? [...tx.duesAllocations]
+            : []
+        // 이 달에 대한 기존 배분 제거 후 추가
+        const filtered = base.filter((a) => a.yearMonth !== ym)
+        filtered.push({ yearMonth: ym, amount, reason: allocReason.trim() || undefined })
+        return { ...tx, duesAllocations: filtered }
+      })
+    )
+    setAllocTxId(null)
+    setAllocAmount('')
+    setAllocReason('')
+  }
+
+  // 이 달에 대한 배분 취소 (거래의 해당 월 배분 제거)
+  function removeAlloc(txId: string, ym: string) {
+    setTransactions(
+      transactions.map((tx) => {
+        if (tx.id !== txId) return tx
+        if (!tx.duesAllocations) return tx
+        const filtered = tx.duesAllocations.filter((a) => a.yearMonth !== ym)
+        return { ...tx, duesAllocations: filtered.length > 0 ? filtered : undefined }
+      })
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -349,12 +414,118 @@ export default function DuesTracker({
 
                   {selectedStatus.transactions.length > 0 && (
                     <div>
-                      <p className="text-xs text-gray-500 mb-2 font-medium">입금 내역</p>
+                      <p className="text-xs text-gray-500 mb-2 font-medium">이 달 회비 집계 내역</p>
                       <ul className="space-y-1">
-                        {selectedStatus.transactions.map((tx) => (
-                          <li key={tx.id} className="py-1 flex justify-between text-xs border-b border-gray-100">
-                            <span className="text-gray-600">{tx.date} {tx.depositorName}</span>
-                            <span className="font-medium text-blue-600">{formatKRW(tx.amount)}</span>
+                        {selectedStatus.transactions.map((tx) => {
+                          const contrib = duesContribution(tx, selectedCell.ym)
+                          const alloc = tx.duesAllocations?.find((a) => a.yearMonth === selectedCell.ym)
+                          const isMoved = getYearMonth(tx.date) !== selectedCell.ym
+                          return (
+                            <li key={tx.id} className="py-1 text-xs border-b border-gray-100">
+                              <div className="flex justify-between items-center">
+                                <span className="text-gray-600">
+                                  {tx.date} {tx.depositorName}
+                                  {isMoved && (
+                                    <span className="ml-1 text-orange-500">(이관됨)</span>
+                                  )}
+                                </span>
+                                <div className="flex items-center gap-1">
+                                  <span className="font-medium text-blue-600">{formatKRW(contrib)}</span>
+                                  {alloc && (
+                                    <button
+                                      onClick={() => removeAlloc(tx.id, selectedCell.ym)}
+                                      className="text-gray-400 hover:text-red-500"
+                                      title="이관 취소"
+                                    >
+                                      <X size={12} />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              {alloc?.reason && (
+                                <span className="text-[11px] text-gray-400">사유: {alloc.reason}</span>
+                              )}
+                              {alloc && tx.amount !== contrib && (
+                                <span className="text-[11px] text-gray-400 block">
+                                  (원거래 {formatKRW(tx.amount)} 중 {formatKRW(contrib)} 배분)
+                                </span>
+                              )}
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* 다른 입금 이관/분할 (월납만) */}
+                  {!isAnnualMember(selectedCell.memberId) && allocatableTxs.length > 0 && (
+                    <div className="border-t border-gray-100 pt-2">
+                      <p className="text-xs text-gray-500 mb-2 font-medium flex items-center gap-1">
+                        <ArrowRightLeft size={12} /> 다른 입금을 이 달 회비로 이관/분할
+                      </p>
+                      <ul className="space-y-1">
+                        {allocatableTxs.map((tx) => (
+                          <li key={tx.id} className="text-xs">
+                            {allocTxId === tx.id ? (
+                              <div className="bg-orange-50 rounded p-2 space-y-2 border border-orange-200">
+                                <p className="text-gray-600">
+                                  {tx.date} {tx.depositorName} · 원거래 {formatKRW(tx.amount)}
+                                </p>
+                                <div className="flex gap-2">
+                                  <div className="flex-1">
+                                    <label className="text-[11px] text-gray-500">이 달 적용 금액</label>
+                                    <input
+                                      type="text"
+                                      inputMode="numeric"
+                                      className="border rounded px-2 py-1 text-xs w-full mt-0.5"
+                                      value={allocAmount}
+                                      onChange={(e) => setAllocAmount(e.target.value.replace(/[^0-9]/g, ''))}
+                                    />
+                                  </div>
+                                </div>
+                                <div>
+                                  <label className="text-[11px] text-gray-500">사유</label>
+                                  <input
+                                    type="text"
+                                    className="border rounded px-2 py-1 text-xs w-full mt-0.5"
+                                    placeholder="예: 4월로 기재됐으나 실제 5월 회비"
+                                    value={allocReason}
+                                    onChange={(e) => setAllocReason(e.target.value)}
+                                  />
+                                </div>
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={applyAlloc}
+                                    className="text-xs bg-orange-500 text-white px-2 py-1 rounded hover:bg-orange-600"
+                                  >
+                                    적용
+                                  </button>
+                                  <button
+                                    onClick={() => setAllocTxId(null)}
+                                    className="text-xs border px-2 py-1 rounded hover:bg-gray-50"
+                                  >
+                                    취소
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex justify-between items-center py-1 border-b border-gray-100">
+                                <span className="text-gray-600">
+                                  {tx.date} {tx.depositorName} · {formatKRW(tx.amount)}
+                                  {getYearMonth(tx.date) !== selectedCell.ym && (
+                                    <span className="ml-1 text-gray-400">
+                                      ({parseInt(getYearMonth(tx.date).split('-')[1])}월 거래)
+                                    </span>
+                                  )}
+                                </span>
+                                <button
+                                  onClick={() => startAlloc(tx)}
+                                  className="text-xs text-orange-600 border border-orange-300 px-2 py-0.5 rounded hover:bg-orange-50"
+                                >
+                                  이관
+                                </button>
+                              </div>
+                            )}
                           </li>
                         ))}
                       </ul>

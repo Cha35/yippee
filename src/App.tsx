@@ -25,6 +25,7 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
 const DEFAULT_SETTINGS: Settings = {
   teamName: '우리 팀',
   defaultMonthlyDues: 30000,
+  duesStartMonth: '2026-03',
 }
 
 const DEFAULT_LEAGUE_PLAN: LeaguePlan = {
@@ -41,6 +42,10 @@ export default function App() {
   const [members, setMembers] = useLocalStorage<Member[]>('tdm:members', INITIAL_MEMBERS)
   const [transactions, setTransactions] = useLocalStorage<Transaction[]>('tdm:transactions', INITIAL_TRANSACTIONS)
 
+  const [expenses, setExpenses] = useLocalStorage<Expense[]>('tdm:expenses', [])
+  const [leaguePlan, setLeaguePlan] = useLocalStorage<LeaguePlan>('tdm:leaguePlan', DEFAULT_LEAGUE_PLAN)
+  const [settings, setSettings] = useLocalStorage<Settings>('tdm:settings', DEFAULT_SETTINGS)
+
   // 시드 버전 체크: v1이 없으면 강제로 초기 데이터 덮어쓰기
   useEffect(() => {
     if (!localStorage.getItem('tdm:seed-v1')) {
@@ -48,11 +53,15 @@ export default function App() {
       setTransactions(INITIAL_TRANSACTIONS)
       localStorage.setItem('tdm:seed-v1', '1')
     }
+    // 기존 사용자 설정에 회비 시작월 백필 (1회)
+    if (!localStorage.getItem('tdm:migrate-duesStart')) {
+      setSettings((prev) =>
+        prev.duesStartMonth ? prev : { ...prev, duesStartMonth: '2026-03' }
+      )
+      localStorage.setItem('tdm:migrate-duesStart', '1')
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  const [expenses, setExpenses] = useLocalStorage<Expense[]>('tdm:expenses', [])
-  const [leaguePlan, setLeaguePlan] = useLocalStorage<LeaguePlan>('tdm:leaguePlan', DEFAULT_LEAGUE_PLAN)
-  const [settings, setSettings] = useLocalStorage<Settings>('tdm:settings', DEFAULT_SETTINGS)
   const [manualOverrides, setManualOverrides] = useLocalStorage<Record<string, 'paid' | 'unpaid'>>(
     'tdm:overrides',
     {}
@@ -95,6 +104,7 @@ export default function App() {
             expenses={expenses}
             leaguePlan={leaguePlan}
             manualOverrides={manualOverrides}
+            settings={settings}
           />
         )}
         {tab === 'members' && (
@@ -116,6 +126,7 @@ export default function App() {
           <DuesTracker
             members={members}
             transactions={transactions}
+            setTransactions={setTransactions}
             manualOverrides={manualOverrides}
             setManualOverrides={setManualOverrides}
             settings={settings}

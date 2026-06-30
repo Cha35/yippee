@@ -26,6 +26,14 @@ export interface Transaction {
   category?: 'dues' | 'general' | 'interest'
   reason?: string
   includedInDues?: boolean
+  // 회비 월 이관/분할: 설정 시 거래일 기준 자동집계 대신 이 배분만 회비로 집계됨
+  duesAllocations?: DuesAllocation[]
+}
+
+export interface DuesAllocation {
+  yearMonth: string // YYYY-MM
+  amount: number
+  reason?: string
 }
 
 export type ExpenseCategory = '리그참가비' | '유니폼' | '운영비' | '기타'
@@ -53,6 +61,7 @@ export interface Settings {
   defaultMonthlyDues: number
   leagueFeeStartMonth?: string  // YYYY-MM: 이 달부터 리그비 추가 징수
   monthlyLeagueFee?: number     // 월 추가 리그비
+  duesStartMonth?: string       // YYYY-MM: 이 달부터 회비 미납 체크 (이전 달은 미납 없음)
 }
 
 export interface DuesStatus {

@@ -72,8 +72,9 @@ export default function TransactionManager({
     if (fileRef.current) fileRef.current.value = ''
   }
 
+  // 미매칭 = 입금 + 팀원 미연결 + 분류 미완료
   const unmatchedTxs = transactions.filter(
-    (tx) => tx.type === '입금' && !tx.memberId
+    (tx) => tx.type === '입금' && !tx.memberId && !tx.category
   )
 
   function startClassify(txId: string) {

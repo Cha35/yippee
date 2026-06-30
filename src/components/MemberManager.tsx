@@ -162,6 +162,29 @@ export default function MemberManager({ members, setMembers, settings, setSettin
           </div>
         </div>
 
+        {/* 회비 시작월 설정 */}
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <p className="text-xs font-medium text-gray-600 mb-3">
+            회비 납입 시작월
+            <span className="text-gray-400 font-normal ml-1">
+              — 이 달 이전은 다른 통장 사용 등으로 미납 체크 안 함
+            </span>
+          </p>
+          <div className="sm:w-1/2">
+            <input
+              type="month"
+              className="border rounded-lg px-3 py-2 text-sm w-full"
+              value={settings.duesStartMonth ?? ''}
+              onChange={(e) =>
+                setSettings({ ...settings, duesStartMonth: e.target.value || undefined })
+              }
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              예: 2026-03 → 1·2월은 미납자 없이 납입 처리됩니다
+            </p>
+          </div>
+        </div>
+
         {/* 리그비 추가 징수 설정 */}
         <div className="mt-4 pt-4 border-t border-gray-100">
           <p className="text-xs font-medium text-gray-600 mb-3">

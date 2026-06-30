@@ -53,13 +53,25 @@ export function getAnnualDues(member: Member): number {
   return member.annualDues ?? member.monthlyDues * 12
 }
 
+// 거래가 특정 월에 회비로 기여하는 금액
+// duesAllocations가 있으면 거래일 기준 자동집계 대신 배분만 사용
+export function duesContribution(tx: Transaction, ym: string): number {
+  if (tx.duesAllocations && tx.duesAllocations.length > 0) {
+    return tx.duesAllocations
+      .filter((a) => a.yearMonth === ym)
+      .reduce((s, a) => s + a.amount, 0)
+  }
+  return getYearMonth(tx.date) === ym ? tx.amount : 0
+}
+
 export function computeDuesStatuses(
   members: Member[],
   transactions: Transaction[],
   months: string[],
   manualOverrides: Record<string, 'paid' | 'unpaid'>,
   leagueFeeStartMonth?: string,
-  monthlyLeagueFee?: number
+  monthlyLeagueFee?: number,
+  duesStartMonth?: string
 ): DuesStatus[] {
   const statuses: DuesStatus[] = []
 
@@ -157,25 +169,31 @@ export function computeDuesStatuses(
         const memberSince = member.joinDate <= ym
         if (!memberSince) continue
 
+        // 회비 기여 거래 (이관/분할 반영)
         const monthTxs = enriched.filter(
           (tx) =>
             tx.type === '입금' &&
             tx.memberId === member.id &&
-            getYearMonth(tx.date) === ym
+            duesContribution(tx, ym) > 0
         )
 
-        const paid = monthTxs.reduce((sum, tx) => sum + tx.amount, 0)
+        const paid = monthTxs.reduce((sum, tx) => sum + duesContribution(tx, ym), 0)
         // 리그비 기간이면 required에 추가
         const leagueExtra = isLeagueFeeMonth(ym) ? (monthlyLeagueFee ?? 0) : 0
         const required = member.monthlyDues + leagueExtra
         const overrideKey = `${member.id}:${ym}`
         const override = manualOverrides[overrideKey]
 
+        // 회비 시작월 이전: 다른 통장 사용 → 미납 없음 (납입 처리)
+        const beforeDuesStart = !!(duesStartMonth && ym < duesStartMonth)
+
         let status: DuesStatus['status']
         if (override === 'paid') {
           status = 'paid'
         } else if (override === 'unpaid') {
           status = 'unpaid'
+        } else if (beforeDuesStart) {
+          status = 'paid'
         } else if (paid >= required) {
           status = 'paid'
         } else if (paid > 0) {
