@@ -161,6 +161,50 @@ export default function MemberManager({ members, setMembers, settings, setSettin
             />
           </div>
         </div>
+
+        {/* 리그비 추가 징수 설정 */}
+        <div className="mt-4 pt-4 border-t border-gray-100">
+          <p className="text-xs font-medium text-gray-600 mb-3">
+            리그비 추가 징수 설정
+            <span className="text-gray-400 font-normal ml-1">
+              — 특정 월부터 회비에 포함해서 내년 리그비를 걷는 경우
+            </span>
+          </p>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">추가 징수 시작월</label>
+              <input
+                type="month"
+                className="border rounded-lg px-3 py-2 text-sm w-full"
+                value={settings.leagueFeeStartMonth ?? ''}
+                onChange={(e) =>
+                  setSettings({ ...settings, leagueFeeStartMonth: e.target.value || undefined })
+                }
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                일시납 멤버는 이 달 이전까지만 일시납으로 표시됩니다
+              </p>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">월 추가 리그비 (원)</label>
+              <input
+                type="number"
+                className="border rounded-lg px-3 py-2 text-sm w-full"
+                placeholder="예: 10000"
+                value={settings.monthlyLeagueFee ?? ''}
+                onChange={(e) =>
+                  setSettings({
+                    ...settings,
+                    monthlyLeagueFee: e.target.value ? parseInt(e.target.value) : undefined,
+                  })
+                }
+              />
+              <p className="text-xs text-gray-400 mt-1">
+                월납은 (기본 회비 + 이 금액)이 required로 계산됩니다
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl shadow p-5">

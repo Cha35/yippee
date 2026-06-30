@@ -98,6 +98,7 @@ export default function App() {
             setTransactions={setTransactions}
             manualOverrides={manualOverrides}
             setManualOverrides={setManualOverrides}
+            settings={settings}
           />
         )}
         {tab === 'expenses' && (

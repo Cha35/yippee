@@ -57,7 +57,9 @@ export function computeDuesStatuses(
   members: Member[],
   transactions: Transaction[],
   months: string[],
-  manualOverrides: Record<string, 'paid' | 'unpaid'>
+  manualOverrides: Record<string, 'paid' | 'unpaid'>,
+  leagueFeeStartMonth?: string,
+  monthlyLeagueFee?: number
 ): DuesStatus[] {
   const statuses: DuesStatus[] = []
 
@@ -66,22 +68,34 @@ export function computeDuesStatuses(
     memberId: tx.memberId ?? matchTransactionToMember(tx, members),
   }))
 
+  // 리그비 추가 징수 여부 판단
+  const hasLeagueFee = !!(leagueFeeStartMonth && monthlyLeagueFee && monthlyLeagueFee > 0)
+  const isLeagueFeeMonth = (ym: string) =>
+    hasLeagueFee && leagueFeeStartMonth! <= ym
+
   for (const member of members) {
     if (!member.active) continue
 
     if (member.paymentType === 'annual') {
-      // 일시납: 연도별로 처리
+      // 일시납: 연도별 기본 납입 계산
       const years = [...new Set(months.map((m) => m.slice(0, 4)))]
       for (const year of years) {
         const memberSince = member.joinDate.slice(0, 4) <= year
         if (!memberSince) continue
 
         const yearMonths = months.filter((m) => m.startsWith(year))
+
+        // 연간 기본 납입 거래 (일시납 금액 이상인 큰 입금 or 연초 납입)
+        // 리그비 시작월 이전 거래만 연간 납입으로 집계
+        const annualCutoff = hasLeagueFee && leagueFeeStartMonth!.startsWith(year)
+          ? leagueFeeStartMonth!
+          : null
         const yearTxs = enriched.filter(
           (tx) =>
             tx.type === '입금' &&
             tx.memberId === member.id &&
-            tx.date.startsWith(year)
+            tx.date.startsWith(year) &&
+            (annualCutoff === null || getYearMonth(tx.date) < annualCutoff)
         )
         const paid = yearTxs.reduce((sum, tx) => sum + tx.amount, 0)
         const required = getAnnualDues(member)
@@ -98,6 +112,31 @@ export function computeDuesStatuses(
             : 'annual_unpaid'
 
         for (const ym of yearMonths) {
+          // 리그비 추가 기간: 해당 월 별도 거래 확인
+          let leagueFeeRequired: number | undefined
+          let leagueFeePaid: number | undefined
+          let leagueFeeStatus: DuesStatus['leagueFeeStatus']
+
+          if (isLeagueFeeMonth(ym)) {
+            const leagueTxs = enriched.filter(
+              (tx) =>
+                tx.type === '입금' &&
+                tx.memberId === member.id &&
+                getYearMonth(tx.date) === ym
+            )
+            leagueFeeRequired = monthlyLeagueFee!
+            leagueFeePaid = leagueTxs.reduce((sum, tx) => sum + tx.amount, 0)
+            const lfOverride = manualOverrides[`${member.id}:${ym}:league`]
+            leagueFeeStatus =
+              lfOverride === 'paid'
+                ? 'paid'
+                : lfOverride === 'unpaid'
+                ? 'unpaid'
+                : leagueFeePaid >= leagueFeeRequired
+                ? 'paid'
+                : 'unpaid'
+          }
+
           statuses.push({
             memberId: member.id,
             yearMonth: ym,
@@ -106,6 +145,9 @@ export function computeDuesStatuses(
             status: annualStatus,
             manualOverride: override,
             transactions: yearTxs,
+            leagueFeeRequired,
+            leagueFeePaid,
+            leagueFeeStatus,
           })
         }
       }
@@ -123,7 +165,9 @@ export function computeDuesStatuses(
         )
 
         const paid = monthTxs.reduce((sum, tx) => sum + tx.amount, 0)
-        const required = member.monthlyDues
+        // 리그비 기간이면 required에 추가
+        const leagueExtra = isLeagueFeeMonth(ym) ? (monthlyLeagueFee ?? 0) : 0
+        const required = member.monthlyDues + leagueExtra
         const overrideKey = `${member.id}:${ym}`
         const override = manualOverrides[overrideKey]
 

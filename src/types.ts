@@ -48,6 +48,8 @@ export interface LeaguePlan {
 export interface Settings {
   teamName: string
   defaultMonthlyDues: number
+  leagueFeeStartMonth?: string  // YYYY-MM: 이 달부터 리그비 추가 징수
+  monthlyLeagueFee?: number     // 월 추가 리그비
 }
 
 export interface DuesStatus {
@@ -58,4 +60,8 @@ export interface DuesStatus {
   status: 'paid' | 'partial' | 'unpaid' | 'annual_paid' | 'annual_unpaid'
   manualOverride?: 'paid' | 'unpaid'
   transactions: Transaction[]
+  // 리그비 추가 징수 기간 필드 (leagueFeeStartMonth 이후 월에만 설정)
+  leagueFeeRequired?: number
+  leagueFeePaid?: number
+  leagueFeeStatus?: 'paid' | 'unpaid'
 }
